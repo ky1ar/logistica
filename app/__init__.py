@@ -9,10 +9,10 @@ db = SQLAlchemy(app)
 
 
 from app.routes.health_routes import health_bp
-
+from app.routes.user_routes import user_bp
 
 app.register_blueprint(health_bp)
-
+app.register_blueprint(user_bp)
 
 
 def api_key_required():
