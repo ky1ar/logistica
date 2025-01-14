@@ -9,8 +9,9 @@ class UserController:
 
 
     @handle_logs_and_exceptions
-    def get_user_by_document(self, document):
+    def user_get_by_document(self, document):
         if not document:
             return 'Missing document', 400
         
         return self.service.get_user_by_document(document)
+    

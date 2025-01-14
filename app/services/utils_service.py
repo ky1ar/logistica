@@ -13,6 +13,14 @@ def get_internal_server_error():
     return 'Error interno del servidor', 500
 
 
+def validate_request(request, required_keys):
+    if not required_keys.issubset(request):
+        missing_keys = required_keys - request.keys()
+        logging.error(f'Missing keys on input data: {missing_keys}')
+        return 'missing_key'
+    return None
+
+
 def handle_exceptions(func):
     @wraps(func)
     def wrapper(*args, **kwargs):

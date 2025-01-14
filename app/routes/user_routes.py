@@ -7,5 +7,5 @@ controller = UserController()
 
 
 @user_bp.route("/<document>", methods=["GET"])
-def get_user_by_document(document):
-    return controller.get_user_by_document(document)
+def user_get_by_document(document):
+    return controller.user_get_by_document(document)
