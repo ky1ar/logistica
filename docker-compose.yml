@@ -1,7 +1,7 @@
 x-common: &common
   environment: &common-env
     FLASK_DEBUG: 1
-    FLASK_APP: "app.py"
+    FLASK_APP: "main.py"
     IN_DOCKER_CONTAINER: 1
   build: &common-build-context
     context: .
@@ -10,7 +10,7 @@ x-common: &common
     timeout: 10s
     retries: 5
 
-x-app-vol: &app-vol "./:/app"
+x-app-vol: &app-vol "./:/application"
 
 services:
   api:
@@ -18,16 +18,16 @@ services:
     build:
       <<: *common-build-context
       dockerfile: Dockerfile
-    container_name: logistica_backend
+    container_name: logistica_backend_${TARGET}
     networks:
       - local_net
     volumes:
       - *app-vol
     ports:
-      - "5001:5001"
+      - "${API_PORT}:${API_PORT}"
     healthcheck:
       <<: *common-healthcheck-timing
-      test: ["CMD", "curl", "--fail", "http://localhost:5001/"]
+      test: ["CMD", "curl", "--fail", "http://localhost:${API_PORT}/"]
     platform: linux/amd64
     restart: always
 

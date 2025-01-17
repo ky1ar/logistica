@@ -18,4 +18,3 @@ class Config:
 
     API_HOST = os.getenv("API_HOST")
     API_PORT = os.getenv("API_PORT")
-    API_KEY = os.getenv("API_KEY")

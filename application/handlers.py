@@ -1,9 +1,8 @@
 import logging
-
-from app.dtos.response import Response
+from functools import wraps
+from application.response import Response
 from sqlalchemy.exc import SQLAlchemyError
 from flask import g
-from functools import wraps
 
 
 format = Response()

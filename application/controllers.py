@@ -1,14 +1,34 @@
 import logging
 
-from app.services.order_service import OrderService
-from app.services.user_service import UserService
-from app.services.utils_service import handle_logs_and_exceptions, validate_request
+from application.services import BaseService
+from application.handlers import handle_logs_and_exceptions, validate_request
 
-class OrderController:
+class BaseController:
     def __init__(self):
-        self.service = OrderService()
-        self.user = UserService()
+        self.service = BaseService()     
 
+
+    @handle_logs_and_exceptions
+    def user_get_by_document(self, document):
+        if not document:
+            return 'Missing document', 400
+        
+        return self.service.get_user_by_document(document)
+    
+
+    @handle_logs_and_exceptions
+    def general_drivers(self):
+        return self.service.get_drivers()
+    
+
+    @handle_logs_and_exceptions
+    def general_districts(self):
+        return self.service.get_districts()
+    
+    @handle_logs_and_exceptions
+    def general_shipping_types(self):
+        return self.service.get_shipping_types()
+    
 
     @handle_logs_and_exceptions
     def order_get_by_number(self, number):
@@ -65,14 +85,14 @@ class OrderController:
             client = request.pop("client")
 
             document = client.get("document")
-            get_user, get_user_status = self.user.get_user_by_document(document)
+            get_user, get_user_status = self.service.get_user_by_document(document)
             if get_user_status == 500:
                 return get_user, get_user_status
 
             if get_user_status == 200:
                 return "El documento de este cliente ya se encuentra registrado", 400
             
-            added_client, added_client_status = self.user.add_client(client)
+            added_client, added_client_status = self.service.add_client(client)
             if added_client_status != 200:
                 return added_client, added_client_status
             
@@ -100,3 +120,4 @@ class OrderController:
     @handle_logs_and_exceptions
     def order_schedule(self, offset=0):
         return self.service.get_schedule(int(offset))
+    
