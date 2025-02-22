@@ -79,6 +79,8 @@ class PurchaseOrders(BaseModel):
     shipping_status_id = db.Column(db.Integer, db.ForeignKey('shipping_status.id'), nullable=False)
     shipping_date = db.Column(db.DATE, nullable=False)
     shipping_schedule_id = db.Column(db.Integer, db.ForeignKey('shipping_schedule.id'))
+    send_email = db.Column(db.Integer, nullable=False)
+    image_path = db.Column(db.String(255))
     
     client = db.relationship("Users", lazy="joined", foreign_keys=[client_id])
     admin = db.relationship("Users", lazy="joined", foreign_keys=[admin_id])

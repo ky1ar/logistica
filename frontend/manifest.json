@@ -1,0 +1,16 @@
+{
+  "name": "Krear3D Logística",
+  "short_name": "Krear3D Logistica",
+  "icons": [
+    {
+      "src": "static/images/logo1.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/?v=0.0.26",
+  "display": "standalone",
+  "theme_color": "#ed6b22",
+  "background_color": "#ed6b22",
+  "orientation": "portrait"
+}

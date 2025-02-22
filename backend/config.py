@@ -18,3 +18,12 @@ class Config:
 
     API_HOST = os.getenv("API_HOST")
     API_PORT = os.getenv("API_PORT")
+
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES"))
+    UPLOAD_FOLDER = os.path.abspath("uploads/")
+
+class Twilio:
+    ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+    AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+    PHONE = os.getenv("TWILIO_PHONE")

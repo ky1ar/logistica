@@ -1,12 +1,22 @@
-from flask import Flask, g, request
-from flask_sqlalchemy import SQLAlchemy
-from config import Config
 import logging
+import eventlet
+
+eventlet.monkey_patch()
+
+from config import Config
+from flask import Flask, g, request
+from flask_socketio import SocketIO
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
+
 
 app = Flask(__name__)
 app.config.from_object(Config)
 db = SQLAlchemy(app)
-
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 
 from application.routes import blueprint
 app.register_blueprint(blueprint)
