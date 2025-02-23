@@ -87,40 +87,18 @@ function data() {
                 };
             }
         },
-
-        async onTheWay(){
-            const payload = {
-                purchase_order_number: this.process_shipping.order_number,
-                shipping_status_id: 3,
-                admin_id: this.auth.user_id
-            };
-            
-            try {
-                const response = await fetch('/api/order/set', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
         
-                if (!response.ok) {
-                    throw new Error('Error al asignar la orden.');
-                }
-                
-                const data = {
-                    phone: this.process_shipping.phone,
-                    user: this.process_shipping.name
-                };
-                this.socket.emit("on_the_way", data);
+        async onTheWay(){
+            await this.updateOrderStatus(3);
+            
+            this.socket.emit("on_the_way", {
+                phone: this.process_shipping.phone,
+                user: this.process_shipping.name
+            });
 
-                await this.updateSchedule();
-                this.process_shipping.shipping_status_id = 3;
-                //this.getSchedule();
-                //this.getPendingShippings();
-            } catch (error) {
-                console.error('Error en la asignación:', error);
-            }
+            await this.updateSchedule();
+            this.process_shipping.shipping_status_id = 3;
+         
         },
         
         async completeShipping() {
@@ -365,21 +343,11 @@ function data() {
             } else {
                 throw new Error('No ha inicado sesión');
             }
-            
         },
+
         async init() {
             try {
-                this.socket = io("/");
- 
-                this.socket.on("update_schedule", (data) => {
-                    console.log("Updating Schedule");
-                    if (this.auth.level == 4) {
-                        this.getPendingShippings();
-                        this.getSchedule();
-                    } else {
-                        this.getShippingDay();
-                    }
-                });
+                this.initSocket();
 
                 await this.loginVerify();
                 await this.fetchData();
@@ -387,6 +355,27 @@ function data() {
             } catch (error) {
                 console.error('Error al iniciar la aplicación:', error.message);
             } 
+        },
+
+        initSocket() {
+            try {
+                this.socket = io("/");
+        
+                this.socket.on("update_schedule", async () => {
+                    if (this.auth.level === 4) {
+                        await Promise.all([this.getPendingShippings(), this.getSchedule()]);
+                    } else {
+                        await this.getShippingDay();
+                    }
+                });
+        
+                this.socket.on("connect_error", (err) => {
+                    console.error("Error en la conexión del socket:", err.message);
+                });
+        
+            } catch (error) {
+                console.error("Error inicializando WebSocket:", error);
+            }
         },
 
         async getShippingDay() {
@@ -401,19 +390,18 @@ function data() {
         async fetchData() {
             try {
                 if (this.auth.level == 4) {
-                    const [driversRes, districtsRes, shippingTypesRes] = await Promise.all([
+                    const [drivers, districts, shippingTypes] = await Promise.all([
                         fetch('/api/general/drivers').then(res => res.json()),
                         fetch('/api/general/districts').then(res => res.json()),
                         fetch('/api/general/shipping_types').then(res => res.json())
                     ]);
 
-                    this.drivers = driversRes.data || [];
-                    this.districts = districtsRes.data || [];
-                    this.shippingTypes = shippingTypesRes.data || [];
+                    this.drivers = drivers.data || [];
+                    this.districts = districts.data || [];
+                    this.shippingTypes = shippingTypes.data || [];
 
                     this.process_shipping.driver_id = this.selectFirstOption(this.drivers);
-                    this.getPendingShippings();
-                    this.getSchedule();
+                    await Promise.all([this.getPendingShippings(), this.getSchedule()]);
                 } else {
                     await this.getShippingDay();
                 }
@@ -502,33 +490,33 @@ function data() {
             }
         },
 
-        today() {
+        async today() {
             if (this.offset == 0) {
                 return;
             }
             this.offset = 0;
             if (this.auth.level == 4) {
-                this.getSchedule();
+                await this.getSchedule();
             } else {
-                this.getShippingDay();
+                await this.getShippingDay();
             }
         },
 
-        next() {
+        async next() {
             this.offset++;
             if (this.auth.level == 4) {
-                this.getSchedule();
+                await this.getSchedule();
             } else {
-                this.getShippingDay();
+                await this.getShippingDay();
             }
         },
 
-        prev() {
+        async prev() {
             this.offset--;
             if (this.auth.level == 4) {
-                this.getSchedule();
+                await this.getSchedule();
             } else {
-                this.getShippingDay();
+                await this.getShippingDay();
             }
         },
 
@@ -601,8 +589,6 @@ function data() {
                 }
                 
                 await this.updateSchedule();
-                //this.getSchedule();
-                //this.getPendingShippings();
             } catch (error) {
                 console.error('Error en la asignación:', error);
             }
@@ -635,10 +621,7 @@ function data() {
                     throw new Error('Error al asignar la orden.');
                 }
 
-                //const data = await response.json();
                 await this.updateSchedule();
-                //this.getSchedule();
-                //this.getPendingShippings();
             } catch (error) {
                 console.error('Error en la asignación:', error);
             }
@@ -705,7 +688,6 @@ function data() {
                 };
             }
             
-            //console.log(payload)
             try {
                 const response = await fetch('/api/order/add', {
                     method: 'POST',
@@ -727,11 +709,7 @@ function data() {
                     return;
                 }
                 
-                //alert('Orden guardada exitosamente');
-                //this.process_shipping.driver_id = this.selectFirstOption(this.drivers);
                 await this.updateSchedule();
-                //this.getPendingShippings();
-                //this.getSchedule();
                 this.closeShipping();
                 
             } catch (error) {

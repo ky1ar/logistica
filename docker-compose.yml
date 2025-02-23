@@ -21,6 +21,15 @@ services:
     platform: linux/amd64
     restart: always
 
+  redis:
+    image: redis:latest
+    container_name: logistica_redis
+    networks:
+      - logistica_net
+    ports:
+      - "6379:6379"
+    restart: always
+
   frontend:
     build:
       context: ./frontend

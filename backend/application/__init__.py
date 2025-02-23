@@ -1,9 +1,10 @@
 import logging
 import eventlet
+import redis
 
 eventlet.monkey_patch()
 
-from config import Config
+from config import Config, Redis
 from flask import Flask, g, request
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
@@ -13,10 +14,14 @@ from flask_jwt_extended import JWTManager
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+redis_client = redis.StrictRedis.from_url(Redis.URL, decode_responses=True)
+
 
 from application.routes import blueprint
 app.register_blueprint(blueprint)

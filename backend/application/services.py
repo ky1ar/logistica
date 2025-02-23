@@ -1,5 +1,7 @@
 import logging
+import json
 
+from application import redis_client
 from config import Twilio
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -333,17 +335,36 @@ class BaseService:
 
     @handle_db_exceptions
     def get_districts(self):
+        cache_key = "districts:list"
+
+        cached = redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached), 200 
+        
         districts = g.db_session.query(Districts).order_by(Districts.name).all()
         if not districts:
             return 'Districts not found', 400
         
-        return [district.to_dict() for district in districts], 200
+        districts_data = [district.to_dict() for district in districts]
+
+        redis_client.setex(cache_key, 86400, json.dumps(districts_data)) #86400 dia #3600 hora #300 5
+
+        return districts_data, 200
 
 
     @handle_db_exceptions
     def get_shipping_types(self):
+        cache_key = "shipping_types:list"
+
+        cached = redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached), 200 
+        
         shipping_types = g.db_session.query(ShippingTypes).all()
         if not shipping_types:
             return 'Shipping Types not found', 400
         
-        return [shipping_type.to_dict() for shipping_type in shipping_types], 200
+        data = [shipping_type.to_dict() for shipping_type in shipping_types]
+        redis_client.setex(cache_key, 86400, json.dumps(data))
+
+        return data, 200

@@ -23,6 +23,11 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES"))
     UPLOAD_FOLDER = os.path.abspath("uploads/")
 
+
+class Redis:
+    URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+
 class Twilio:
     ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
     AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
