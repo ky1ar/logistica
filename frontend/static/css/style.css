@@ -582,8 +582,8 @@ body {
     width: 100%;
     font-family: var(--font);
     font-weight: 500;
-    -webkit-appearance: none;
-    appearance: none;
+    /*-webkit-appearance: none;
+    appearance: none;*/
     background: none;
 }
 #modal-shipping input:focus,
