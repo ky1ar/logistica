@@ -20,8 +20,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/js/main.js?ver=v0.0.26"></script>
-    <link rel="stylesheet" href="static/css/style.css?ver=v0.0.26">
+    <script src="static/js/main.js?v=0.1.0.2"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.2">
 
 </head>
 
@@ -38,8 +38,8 @@
 
                     <div id="loginForm">
                         <div>
-                            <label for="email">Correo electrónico</label>
-                            <input type="text" x-model="auth.email" required placeholder="Ingresa tu correo" autocomplete="username">
+                            <label for="email">Documento</label>
+                            <input type="text" x-model="auth.document" required placeholder="Ingresa tu correo" autocomplete="username">
                         </div>
                         <div>
                             <label for="pass">Contraseña</label>
@@ -113,7 +113,7 @@
                 <template x-if="auth.level == 4">
                     <div class="wrapper">
                         <div id="pending-shippings">
-                            <div class="title hover-opacity" @click="processShipping()">+ Añadir envío</div>
+                            <div class="title hover-opacity" @click="processShippingModal()">+ Añadir envío</div>
                             
                             <div class="container"
                                 @dragover="onDragOver($event)" 
@@ -121,20 +121,20 @@
                                 @drop="onDropPending()"
                             >
                                 <template x-if="pendingShippings.length > 0">
-                                    <template x-for="shipping in pendingShippings" :key="shipping.number">
+                                    <template x-for="shipping in pendingShippings" :key="shipping.order_number">
                                         <div class="item-card"
-                                            :class="shipping.shipping_type_slug"
+                                            :class="shipping.method_slug"
                                             draggable="true"
                                             @dragstart="onDragStart(shipping)"
-                                            @click="processShipping(shipping.number)"
+                                            @click="processShippingModal(shipping.order_number)"
                                         >   
-                                            <span class="number" x-text="shipping.number"></span>
+                                            <span class="number" x-text="shipping.order_number"></span>
                                             <span class="district" x-text="shipping.district_name"></span>
                                             <div class="data">
-                                                <span class="name" x-text="shipping.client_name"></span>
+                                                <span class="name" x-text="shipping.contacts[0].name"></span>
                                                 <span class="address" x-text="shipping.address"></span>
                                             </div>
-                                            <span class="date" x-text="new Date(shipping.creation_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })"></span>
+                                            <span class="date" x-text="new Date(shipping.register_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })"></span>
 
                                         </div>
                                     </template>
@@ -174,22 +174,22 @@
                                                 @drop="onDrop(day, scheduleIndex)">
                                                 
                                                 <template x-if="day.orders['schedule_' + scheduleIndex].length > 0">
-                                                    <template x-for="shipping in day.orders['schedule_' + scheduleIndex]" :key="shipping.number">
+                                                    <template x-for="shipping in day.orders['schedule_' + scheduleIndex]" :key="shipping.order_number">
                                                         <div class="item-card"
-                                                            :class="[shipping.shipping_type_slug, isFutureOrToday(day.date) ? '' : 'past-date']"
-                                                            :draggable="isFutureOrToday(day.date) && shipping.shipping_status_id != 3 && shipping.shipping_status_id != 4"
-                                                            @dragstart="isFutureOrToday(day.date) ? onDragStart(shipping) : null"
-                                                            @click="processShipping(shipping.number)">
-                                                            <span class="number" x-text="shipping.number"></span>
+                                                            :class="[shipping.method_slug, isFutureOrToday(day.date) ? '' : 'past-date']"
+                                                            :draggable="shipping.status_id != 3 && shipping.status_id != 4"
+                                                            @dragstart="onDragStart(shipping)"
+                                                            @click="processShippingModal(shipping.order_number)">
+                                                            <span class="number" x-text="shipping.order_number"></span>
                                                             <span class="district" x-text="shipping.district_name"></span>
                                                             <div class="data">
-                                                                <span class="name" x-text="shipping.client_name"></span>
+                                                                <span class="name" x-text="shipping.contacts[0].name"></span>
                                                                 <span class="address" x-text="shipping.address"></span>
                                                             </div>
-                                                            <a class="phone" @click.stop :href="'https://api.whatsapp.com/send?phone=' + shipping.client_phone" target="_blank" rel="nofollow">
+                                                            <a class="phone" @click.stop :href="'https://api.whatsapp.com/send?phone=' + shipping.contacts[0].phone" target="_blank" rel="nofollow">
                                                                 <img src="static/images/wsp.svg" width="16" height="16" alt="phone">
                                                             </a>
-                                                            <span x-show="shipping.shipping_status_id > 2" class="status" :class="{'full': shipping.shipping_status_id > 3}" x-text="shipping.shipping_status_name"></span>
+                                                            <span x-show="shipping.status_id > 2" class="status" :class="{'full': shipping.status_id > 3}" x-text="shipping.status_name"></span>
                                                         </div>
                                                     </template>
                                                 </template>
@@ -205,7 +205,7 @@
                     </div>
                 </template>
                 
-                <template x-if="auth.level == 3">
+                <template x-if="auth.level == 5">
                     <div class="wrapper">
                         <div id="schedule-box" class="driver">
                             <div class="header">
@@ -228,19 +228,19 @@
                                     <template x-for="scheduleIndex in [1, 2]" :key="scheduleIndex">
                                         <div class="order-container">
                                         
-                                            <template x-if="shippingDay.orders['schedule_' + scheduleIndex].length > 0">
-                                                <template x-for="shipping in shippingDay.orders['schedule_' + scheduleIndex]" :key="shipping.number">
-                                                    <div class="item-card" :class="shipping.shipping_type_slug" @click="showShipping(shipping.number)">
-                                                        <span class="number" x-text="shipping.number"></span>
+                                            <template x-if="shippingDay.orders?.['schedule_' + scheduleIndex].length > 0">
+                                                <template x-for="shipping in shippingDay.orders['schedule_' + scheduleIndex]" :key="shipping.order_number">
+                                                    <div class="item-card" :class="shipping.method_slug" @click="showShipping(shipping.order_number)">
+                                                        <span class="number" x-text="shipping.order_number"></span>
                                                         <span class="district" x-text="shipping.district_name"></span>
                                                         <div class="data">
-                                                            <span class="name" x-text="shipping.client_name"></span>
+                                                            <span class="name" x-text="shipping.contacts[0].name"></span>
                                                             <span class="address" x-text="shipping.address"></span>
                                                         </div>
-                                                        <a class="phone" @click.stop :href="'https://api.whatsapp.com/send?phone=' + shipping.client_phone" target="_blank" rel="nofollow">
+                                                        <a class="phone" @click.stop :href="'https://api.whatsapp.com/send?phone=' + shipping.contacts[0].phone" target="_blank" rel="nofollow">
                                                             <img src="static/images/wsp.svg" width="16" height="16" alt="phone">
                                                         </a>
-                                                        <span x-show="shipping.shipping_status_id > 2" class="status" :class="{'full': shipping.shipping_status_id > 3}" x-text="shipping.shipping_status_name"></span>
+                                                        <span x-show="shipping.status_id > 2" class="status" :class="{'full': shipping.status_id > 3}" x-text="shipping.status_name"></span>
                                                     </div>
                                                 </template>
                                             </template>
@@ -248,7 +248,6 @@
                                         </div>
                                     </template>
 
-                                    
                                 </div>
                             </div>
 
@@ -264,11 +263,11 @@
                 <div class="content-mobile">
                     <h2 x-text="'Orden ' + process_shipping.order_number"></h2>
                     <div class="detail">
-                        <a class="box" :href="'tel:+'+process_shipping.phone">
+                        <a class="box" :href="'tel:+51'+process_shipping.phone">
                             <img width="24" height="24" alt="user" src="static/images/call.svg">
                             <div class="data">
                                 <div class="title" x-text="process_shipping.name"></div>
-                                <div class="subtitle" x-text="process_shipping.phone.slice(2)"></div>
+                                <div class="subtitle" x-text="process_shipping.phone"></div>
                             </div>
                         </a>
                         
@@ -281,7 +280,7 @@
                         </div>
                     </div>
                     
-                    <template x-if="process_shipping.shipping_status_id == 2">
+                    <template x-if="process_shipping.status_id == 2">
                         <div class="capture-proof">
                             <div class="options">
                                 <button class="hover-opacity green" type="button" @click="onTheWay()">
@@ -291,7 +290,7 @@
                         </div>
                     </template>
 
-                    <template x-if="process_shipping.shipping_status_id == 3">
+                    <template x-if="process_shipping.status_id == 3">
                         <div class="capture-proof">
                             <label for="fileInput" class="dotted-button" x-show="!preview">+ Subir Foto</label>
 
@@ -319,7 +318,7 @@
                         </div>
                     </template>
 
-                    <template x-if="process_shipping.shipping_status_id == 4">
+                    <template x-if="process_shipping.status_id == 4">
                         <div class="capture-proof">
                             <img class="thumbnail" :src="'/api/uploads/'+process_shipping.proof" alt="preview">
                         </div>
@@ -335,11 +334,11 @@
                 <div class="content-mobile">
                     <h2 x-text="'Orden ' + process_shipping.order_number"></h2>
                     <div class="detail">
-                        <a class="box" :href="'tel:+'+process_shipping.phone">
+                        <a class="box" :href="'tel:+51'+process_shipping.phone">
                             <img width="24" height="24" alt="user" src="static/images/call.svg">
                             <div class="data">
                                 <div class="title" x-text="process_shipping.name"></div>
-                                <div class="subtitle" x-text="process_shipping.phone.slice(2)"></div>
+                                <div class="subtitle" x-text="process_shipping.phone"></div>
                             </div>
                         </a>
                         
@@ -364,108 +363,101 @@
 
             <div x-show="modal.shipping" x-cloak id="modal-shipping">
                 <form class="content">
-                    <h2 x-text="process_shipping.edit == '' ? 'Añadir envío':'Orden ' + process_shipping.order_number"></h2>
-                    <ul>
-                        <li class="percent33" x-show="process_shipping.edit == ''">
-                            <label>
-                                Orden
-                                <input type="text" type="order" placeholder="Ingrese la orden" x-model="process_shipping.order_number">
-                            </label>
-                        </li>
-                        <li class="percent33">
-                            <label>
-                                Tipo de envío
-                                <select x-model="process_shipping.shipping_type_id">
-                                    <template x-if="shippingTypes.length !== 1">
-                                        <option value="">Seleccionar</option>
-                                    </template>
+                    <input class="percent40 title" type="text" placeholder="Número de orden" x-model="process_shipping.order_number" :disabled="process_shipping.edit">
 
-                                    <template x-for="type in shippingTypes" :key="type.id">
-                                        <option :value="type.id" x-text="type.name"></option>
-                                    </template>
-                                </select>
-                            </label>
-                        </li>
-                        <li class="percent33">
-                            <label>
-                                Fecha de creación
-                                <input type="date" x-model="process_shipping.creation_date">
-                            </label>
-                        </li>
-                        <li class="percent33">
-                            <label>
-                                Documento
-                                <input type="text" maxlength="11" @input="process_shipping.document = process_shipping.document.replace(/\D/g, '')" placeholder="DNI / RUC" x-model="process_shipping.document" @blur="fetchUserData(process_shipping.document)">
-                                <input type="hidden" x-model="process_shipping.document_id">
-                            </label>
-                        </li>
-                        <li class="percent66">
-                            <label>
-                                Cliente
-                                <input type="text" placeholder="Nombre o Razón Social" x-model="process_shipping.name" :disabled="process_shipping.disabled">
-                            </label>
-                        </li>
-                        <li class="percent60">
-                            <label>
-                                Correo
-                                <input type="text" placeholder="Ingresar correo" x-model="process_shipping.email" :disabled="process_shipping.disabled">
-                            </label>
-                        </li>
-                        <li class="percent40">
-                            <label>
-                                Celular
-                                <input type="text" maxlength="9" @input="process_shipping.phone = process_shipping.phone.replace(/\D/g, '')" placeholder="Ingresar los 9 dígitos" x-model="process_shipping.phone" :disabled="process_shipping.disabled">
-                            </label>
-                        </li>
-                        <li class="percent60">
-                            <label>
-                                Dirección
-                                <input type="text" placeholder="Ingrese la dirección" x-model="process_shipping.address">
-                            </label>
-                        </li>
-                        <li class="percent40">
-                            <label>
-                                Distrito
-                                <select x-model="process_shipping.district_id">
-                                    <template x-if="districts.length !== 1">
-                                        <option value="">Seleccionar</option>
-                                    </template>
-                                    
-                                    <template x-for="district in districts" :key="district.id">
-                                        <option :value="district.id" x-text="district.name"></option>
-                                    </template>
-                                </select>
-                            </label>
-                        </li>
-                        <li class="percent33">
-                            <label>
-                                Conductor
-                                <select x-model="process_shipping.driver_id">
-                                    <template x-if="drivers.length !== 1">
-                                        <option value="">Seleccionar</option>
-                                    </template>
+                    <div class="fields">
+                        <label class="percent33">
+                            <select x-model="process_shipping.method_id">
+                                <template x-if="shippingMethod.length !== 1">
+                                    <option value="">Tipo de envío</option>
+                                </template>
 
-                                    <template x-for="driver in drivers" :key="driver.id">
-                                        <option :value="driver.id" x-text="driver.name"></option>
-                                    </template>
-                                </select>
-                            </label>
-                        </li>
+                                <template x-for="type in shippingMethod" :key="type.id">
+                                    <option :value="type.id" x-text="type.name"></option>
+                                </template>
+                            </select>
+                        </label>
 
-                        <li class="percent33" x-show="![3, 4].includes(Number(process_shipping.shipping_type_id))">
-                            <label>
-                                Correo un día antes
-                                <select x-model="process_shipping.send_email">
-                                    <option value="1">Sí</option>
-                                    <option value="0">No</option>
-                                </select>
-                            </label>
-                        </li>
-                    </ul>
+                        <label class="percent33">
+                            <input type="date" x-model="process_shipping.register_date">
+                        </label>
+
+                        <label class="percent33">
+                            <input type="text" maxlength="11" @input="process_shipping.document = process_shipping.document.replace(/\D/g, '')" placeholder="DNI / RUC" x-model="process_shipping.document" @blur="fetchUserData()">
+                            <input type="hidden" x-model="process_shipping.document_id">
+                        </label>
+                        
+                        <div class="contact">
+                            <div class="data">
+                                <label class="percent100">
+                                    <img alt="user" src="static/images/user.svg" width="16" height="16">
+                                    <input type="text" placeholder="Nombre o Razón Social" x-model="process_shipping.name" disabled>
+                                </label>
+        
+                                <label class="percent66">
+                                    <img alt="email" src="static/images/email.svg" width="16" height="16">
+                                    <input type="text" placeholder="Email" x-model="process_shipping.email">
+                                </label>
+        
+                                <label class="percent33">
+                                    <img alt="phone" src="static/images/phone.svg" width="16" height="16">
+                                    <input type="text" maxlength="9" @input="process_shipping.phone = process_shipping.phone.replace(/\D/g, '')" placeholder="Celular" x-model="process_shipping.phone">
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <label class="percent60">
+                            <input type="text" placeholder="Dirección" x-model="process_shipping.address">
+                        </label>
+
+                        <label class="percent40">
+                            <select x-model="process_shipping.district_id">
+                                <template x-if="districts.length !== 1">
+                                    <option value="">Distrito</option>
+                                </template>
+                                
+                                <template x-for="district in districts" :key="district.id">
+                                    <option :value="district.id" x-text="district.name"></option>
+                                </template>
+                            </select>
+                        </label>
+
+                        <label class="percent33">
+                            <input type="text" placeholder="Link de Maps" x-model="process_shipping.maps">
+                        </label>
+
+                        <label class="percent33">
+                            <select x-model="process_shipping.vendor_id">
+                                <template x-if="shippingMethod.length !== 1">
+                                    <option value=null>Comercial</option>
+                                </template>
+
+                                <template x-for="vendor in vendors" :key="vendor.id">
+                                    <option :value="vendor.id" x-text="vendor.name"></option>
+                                </template>
+                            </select>   
+                        </label>
+
+                        <label class="percent33">
+                            <select x-model="process_shipping.driver_id">
+                                <template x-for="driver in drivers" :key="driver.id">
+                                    <option :value="driver.id" x-text="driver.name"></option>
+                                </template>
+                            </select>
+                        </label>
+                    </div>
                     
-                    <button class="hover-opacity" type="button" :class="process_shipping.button_class" @click="saveOrder">
-                        <span x-text="process_shipping.button_text"></span>
-                    </button>
+                    <div class="process_buttons">
+                        <template x-if="process_shipping.edit">
+                            <button class="hover-opacity red" type="button" @click="deleteShipping()">
+                                <span>Eliminar</span>
+                            </button>
+                        </template>
+                        <button class="hover-opacity" type="button" :class="[process_shipping.button_class, process_shipping.edit ? 'green' : '']" @click="processShipping()">
+                            <span x-text="process_shipping.button_text"></span>
+                        </button>
+                    </div>
+                    
 
                     <div class="hover-opacity" id="modal-close" @click="closeShipping()" >
                         <img alt="close" src="static/images/x.svg" width="12" height="12">

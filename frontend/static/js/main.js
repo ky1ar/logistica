@@ -3,8 +3,9 @@ function data() {
         schedule: [],
         shippingDay: [],
         drivers: [],
+        vendors: [],
         districts: [],
-        shippingTypes: [],
+        shippingMethod: [],
         pendingShippings: [],
 
         offset: 0,
@@ -12,9 +13,9 @@ function data() {
         scheduleRange: '',
         
         auth: {
-            email: '',
+            document: '',
             password: '',
-            user_id: null,
+            id: null,
             level: null,
             name: '',
             role: '',
@@ -47,39 +48,48 @@ function data() {
         },
 
         process_shipping: {
-            edit: '',
+            edit: false,
             button_text: 'Añadir',
             button_complete: 'Entregado',
             button_class: '',
             driver_id: null,
+            vendor_id: null,
             document: '',
             document_id: null,
             name: '',
             email: '',
             phone: '',
             order_number: '',
-            shipping_type_id: null,
+            method_id: null,
+            method_name: '',
             address: '',
             district_id: null,
-            creation_date: '',
-            disabled: false,
-            send_email: 1,
-            shipping_status_id: null,
+            district_name: '',
+            register_date: '',
+            status_id: null,
+            proof: '',
+            maps: null,
         },
+
         socket: null,
         preview: null,
         imageFile: null,
 
-        async processShipping(shipping_number){
+        async processShippingModal(shipping_number){
             if (shipping_number){
                 await this.getShipping(shipping_number);
-            }
 
-            if (this.process_shipping.shipping_status_id > 3){
-                this.modal = {
-                    completed: true,
-                    overlay: true,
-                };
+                if (this.process_shipping.status_id > 3){
+                    this.modal = {
+                        completed: true,
+                        overlay: true,
+                    };
+                } else {
+                    this.modal = {
+                        shipping: true,
+                        overlay: true,
+                    };
+                }
             } else {
                 this.modal = {
                     shipping: true,
@@ -91,13 +101,13 @@ function data() {
         async onTheWay(){
             await this.updateOrderStatus(3);
             
-            this.socket.emit("on_the_way", {
+            /*this.socket.emit("on_the_way", {
                 phone: this.process_shipping.phone,
                 user: this.process_shipping.name
-            });
+            });*/
 
-            await this.updateSchedule();
-            this.process_shipping.shipping_status_id = 3;
+            //await this.updateSchedule();
+            this.process_shipping.status_id = 3;
          
         },
         
@@ -125,7 +135,7 @@ function data() {
                 await this.uploadImage(formData);
                 await this.updateOrderStatus(4);
         
-                await this.updateSchedule();
+                //await this.updateSchedule();
                 this.closeShipping();
         
             } catch (error) {
@@ -135,7 +145,7 @@ function data() {
         
         async rejectShipping() {
             await this.updateOrderStatus(6);
-            await this.updateSchedule();
+            //await this.updateSchedule();
             this.closeShipping();
         },
 
@@ -193,11 +203,32 @@ function data() {
             }
         },
         
+        async deleteShipping() {
+            const payload = {
+                order_number: this.process_shipping.order_number,
+                admin_id: this.auth.id
+            };
+        
+            const response = await fetch('/api/order/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+        
+            if (!response.ok) {
+                throw new Error('Error al asignar la orden.');
+            }
+            //await this.updateSchedule();
+            this.closeShipping();
+        },
+
         async updateOrderStatus(status) {
             const payload = {
-                purchase_order_number: this.process_shipping.order_number,
-                shipping_status_id: status,
-                admin_id: this.auth.user_id
+                order_number: this.process_shipping.order_number,
+                status_id: status,
+                admin_id: this.auth.id
             };
         
             const response = await fetch('/api/order/set', {
@@ -213,9 +244,9 @@ function data() {
             }
         },
 
-        async updateSchedule(){
+        /*async updateSchedule(){
             this.socket.emit("update_schedule", {});
-        },
+        },*/
 
         async showShipping(shipping_number){
             await this.getShipping(shipping_number);
@@ -238,24 +269,27 @@ function data() {
             this.selectedOrder = null;
 
             this.process_shipping = {
-                edit: '',
+                edit: false,
                 button_text: 'Añadir',
                 button_complete: 'Entregado',
                 button_class: '',
                 driver_id: this.selectFirstOption(this.drivers),
+                vendor_id: null,
                 document: '',
                 document_id: null,
                 name: '',
                 email: '',
                 phone: '',
                 order_number: '',
-                shipping_type_id: null,
+                method_id: null,
+                method_name: '',
                 address: '',
                 district_id: null,
-                creation_date: '',
-                disabled: false,
-                send_email: 1,
-                shipping_status_id: null,
+                district_name: '',
+                register_date: '',
+                status_id: null,
+                proof: '',
+                maps: null,
             };
         },
 
@@ -266,7 +300,7 @@ function data() {
         },
 
         async login() {
-            const payload = { email: this.auth.email, password: this.auth.password }
+            const payload = { document: this.auth.document, password: this.auth.password }
             try {
                 const response = await fetch('/api/user/login', {
                     method: 'POST',
@@ -290,8 +324,8 @@ function data() {
                 
                 await this.checkImage(userData.document);
                 this.auth.token = userData.token;
-                this.auth.user_id = userData.user_id;
-                this.auth.level = userData.level;
+                this.auth.id = userData.id;
+                this.auth.level = userData.levels;
                 this.auth.name = userData.name;
                 this.auth.role = userData.role;
 
@@ -302,11 +336,11 @@ function data() {
             } catch (e) {
                 console.error('Error during login verification:', e.message);
             }
-        },
+        },  
 
         logout() {
             this.auth.token = null;
-            this.auth.user_id = null;
+            this.auth.id = null;
             this.auth.level = null;
             this.auth.name = '';
             this.auth.role = '';
@@ -317,11 +351,10 @@ function data() {
 
         async loginVerify() {
             const storedData = localStorage.getItem('user_data');
-
             if (storedData) {
                 const userData = JSON.parse(storedData);
                 this.auth.token = userData.token;
-                this.auth.user_id = userData.user_id;
+                this.auth.id = userData.id;
                 this.auth.level = userData.level;
                 this.auth.name = userData.name;
                 this.auth.role = userData.role;
@@ -348,7 +381,6 @@ function data() {
         async init() {
             try {
                 this.initSocket();
-
                 await this.loginVerify();
                 await this.fetchData();
 
@@ -381,7 +413,7 @@ function data() {
         async getShippingDay() {
             try {
                 const response = await fetch(`/api/shipping/day?offset=${this.offset}`).then(res => res.json());
-                this.shippingDay = response.data || { orders: [] }  ;
+                this.shippingDay = response.data || { orders: [] };
             } catch (error) {
                 console.error('Error fetching schedule', error);
             }
@@ -390,15 +422,17 @@ function data() {
         async fetchData() {
             try {
                 if (this.auth.level == 4) {
-                    const [drivers, districts, shippingTypes] = await Promise.all([
+                    const [drivers, vendors, districts, shippingMethod] = await Promise.all([
                         fetch('/api/general/drivers').then(res => res.json()),
+                        fetch('/api/general/vendors').then(res => res.json()),
                         fetch('/api/general/districts').then(res => res.json()),
                         fetch('/api/general/shipping_types').then(res => res.json())
                     ]);
 
                     this.drivers = drivers.data || [];
+                    this.vendors = vendors.data || [];
                     this.districts = districts.data || [];
-                    this.shippingTypes = shippingTypes.data || [];
+                    this.shippingMethod = shippingMethod.data || [];
 
                     this.process_shipping.driver_id = this.selectFirstOption(this.drivers);
                     await Promise.all([this.getPendingShippings(), this.getSchedule()]);
@@ -411,7 +445,7 @@ function data() {
         },
         
         selectFirstOption(options) {
-            return options[0].id;
+            return Array.isArray(options) && options.length > 0 ? options[0].id : null;
         },
 
         async getPendingShippings() {
@@ -423,31 +457,33 @@ function data() {
             }
         },
 
-        async getShipping(shipping_id) {
+        async getShipping(order_number) {
             try {
-                const response = await fetch(`/api/order/${shipping_id}`).then(res => res.json());
+                const response = await fetch(`/api/order/${order_number}`).then(res => res.json());
                 const shipping = response.data || [];
 
                 this.process_shipping = {
-                    edit: shipping.number,
+                    edit: true,
                     button_text: 'Actualizar',
                     button_complete: 'Entregado',
+
                     driver_id: shipping.driver_id,
-                    document: shipping.client_document,
-                    document_id: shipping.client_document_id,
-                    name: shipping.client_name,
-                    email: shipping.client_email,
-                    phone: shipping.client_phone,
-                    order_number: shipping.number,
-                    shipping_type_id: shipping.shipping_type_id,
+                    vendor_id: shipping.vendor_id,
+                    document: shipping.contacts[0].document,
+                    document_id: shipping.contacts[0].document_id,
+                    name: shipping.contacts[0].name,
+                    email: shipping.contacts[0].email,
+                    phone: shipping.contacts[0].phone,
+                    order_number: shipping.order_number,
+                    method_id: shipping.method_id,
+                    method_name: shipping.method_name,
                     address: shipping.address,
                     district_id: shipping.district_id,
                     district_name: shipping.district_name,
-                    creation_date: shipping.creation_date_format,
-                    send_email: shipping.send_email,
-                    shipping_status_id: shipping.shipping_status_id,
-                    shipping_type_name: shipping.shipping_type_name,
-                    proof: shipping.image_path,
+                    register_date: shipping.register_date_format,
+                    status_id: shipping.status_id,
+                    proof: shipping.proof_photo,
+                    maps: shipping.maps,
                 };
 
             } catch (error) {
@@ -520,8 +556,8 @@ function data() {
             }
         },
 
-        onDragStart(order) {
-            this.selectedOrder = order;
+        onDragStart(shipping) {
+            this.selectedOrder = shipping;
         },
 
         isFutureOrToday(dateString) {
@@ -563,16 +599,16 @@ function data() {
                 return;
             }
         
-            if (this.selectedOrder.shipping_date == day.date && this.selectedOrder.schedule == schedule) {
+            if (this.selectedOrder.delivery_date == day.date && this.selectedOrder.schedule == schedule) {
                 return;
             }
         
             const payload = {
-                purchase_order_number: this.selectedOrder.number,
-                shipping_date: day.date,
-                shipping_status_id: 2,
-                shipping_schedule_id: schedule,
-                admin_id: this.auth.user_id
+                order_number: this.selectedOrder.order_number,
+                delivery_date: day.date,
+                status_id: 2,
+                schedule_id: schedule,
+                admin_id: this.auth.id
             };
         
             try {
@@ -588,7 +624,7 @@ function data() {
                     throw new Error('Error al asignar la orden.');
                 }
                 
-                await this.updateSchedule();
+                //await this.updateSchedule();
             } catch (error) {
                 console.error('Error en la asignación:', error);
             }
@@ -601,11 +637,11 @@ function data() {
             }
 
             const payload = {
-                purchase_order_number: this.selectedOrder.number,
-                shipping_date: null,
-                shipping_status_id: 1,
-                shipping_schedule_id: null,
-                admin_id: this.auth.user_id
+                order_number: this.selectedOrder.order_number,
+                delivery_date: null,
+                status_id: 1,
+                schedule_id: null,
+                admin_id: this.auth.id
             };
 
             try {
@@ -621,39 +657,39 @@ function data() {
                     throw new Error('Error al asignar la orden.');
                 }
 
-                await this.updateSchedule();
+                //await this.updateSchedule();
             } catch (error) {
                 console.error('Error en la asignación:', error);
             }
         },
 
-        async fetchUserData(document) {
+        async fetchUserData() {
+            const document = this.process_shipping.document;
             if (!document) {
-                console.error('Documento no proporcionado.');
+                this.process_shipping.document_id = '';
+                this.process_shipping.email = '';
+                this.process_shipping.name = '';
+                this.process_shipping.phone = '';
                 return;
             }
+
             try {
-                if (this.process_shipping.disabled) {
+                const response = await fetch(`/api/user/${document}`);
+                if (!response.ok) {
                     this.process_shipping.document_id = '';
                     this.process_shipping.email = '';
                     this.process_shipping.name = '';
                     this.process_shipping.phone = '';
-                }
-                
-                this.process_shipping.disabled = false;
-
-                const response = await fetch(`/api/user/${document}`);
-                if (!response.ok) {
-                    console.log('Documeto no encontrado')
                     return;
                 }
+
                 const data = await response.json();
                 if (data.success) {
                     this.process_shipping.document_id = data.data.id;
                     this.process_shipping.email = data.data.email;
                     this.process_shipping.name = data.data.name;
                     this.process_shipping.phone = data.data.phone;
-                    this.process_shipping.disabled = true;
+                    //this.process_shipping.disabled = true;
                 } else {
                     console.warn('Respuesta de API no exitosa.');
                 }
@@ -662,34 +698,30 @@ function data() {
             }
         },
 
-        async saveOrder() {
-            
-            let email_overrite = [3, 4].includes(this.process_shipping.shipping_type_id) ? 0 : this.process_shipping.shipping_type_id;
+        async processShipping() {
             const payload = {
-                purchase_order_number: this.process_shipping.order_number,
-                shipping_type_id: email_overrite,
+                edit: this.process_shipping.edit,
+                order_number: this.process_shipping.order_number,
+                method_id: this.process_shipping.method_id,
                 driver_id: this.process_shipping.driver_id,
-                admin_id: this.auth.user_id,
+                vendor_id: this.process_shipping.vendor_id || null,
+                admin_id: this.auth.id,
                 address: this.process_shipping.address,
                 district_id: this.process_shipping.district_id,
-                creation_date: this.process_shipping.creation_date,
-                send_email: this.process_shipping.send_email,
-                comments: ""
-            };
-
-            if (this.process_shipping.document_id) {
-                payload.client_id = this.process_shipping.document_id;
-            } else {
-                payload.client = {
+                maps: this.process_shipping.maps,
+                register_date: this.process_shipping.register_date,
+                client_id: this.process_shipping.document_id,
+                client: {
                     document: this.process_shipping.document,
                     email: this.process_shipping.email,
                     name: this.process_shipping.name,
                     phone: this.process_shipping.phone,
-                };
-            }
-            
+                },
+                comments: ""
+            };
+
             try {
-                const response = await fetch('/api/order/add', {
+                const response = await fetch('/api/order/process', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -709,7 +741,7 @@ function data() {
                     return;
                 }
                 
-                await this.updateSchedule();
+                //await this.updateSchedule();
                 this.closeShipping();
                 
             } catch (error) {

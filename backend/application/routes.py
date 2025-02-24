@@ -39,6 +39,11 @@ def general_drivers():
     return controller.general_drivers()
 
 
+@blueprint.route("/general/vendors", methods=["GET"])
+def general_vendors():
+    return controller.general_vendors()
+
+
 @blueprint.route("/general/districts", methods=["GET"])
 def general_districts():
     return controller.general_districts()
@@ -49,9 +54,9 @@ def general_shipping_types():
     return controller.general_shipping_types()
 
 
-@blueprint.route("/order/add", methods=["POST"])
-def order_add():
-    return controller.order_add(request.get_json())
+@blueprint.route("/order/process", methods=["POST"])
+def order_process():
+    return controller.order_process(request.get_json())
 
 
 @blueprint.route("/order/<number>", methods=["GET"])
@@ -59,9 +64,31 @@ def order_get_by_number(number):
     return controller.order_get_by_number(number)
 
 
+@blueprint.route("/order/set", methods=["POST"])
+def order_set():
+    return controller.order_set(request.get_json())
+
+
+@blueprint.route("/order/delete", methods=["POST"])
+def order_delete():
+    return controller.order_delete(request.get_json())
+
+
+@blueprint.route("/order/schedule", methods=["GET"])
+def order_schedule():
+    offset = request.args.get('offset', None)
+    return controller.order_schedule(offset)
+
+
 @blueprint.route("/order/pending", methods=["GET"])
 def order_get_pending():
     return controller.order_get_pending()
+
+
+@blueprint.route("/shipping/day", methods=["GET"])
+def shipping_day():
+    offset = request.args.get('offset', None)
+    return controller.shipping_day(offset)
 
 
 @blueprint.route("/photo/upload", methods=["POST"])
@@ -77,7 +104,7 @@ def photo_upload():
     image.save(filepath)
     data = {
         "order_number": order_number,
-        "filepath": filename
+        "proof_photo": filename
     }
     return controller.photo_upload(data)
 
@@ -85,25 +112,6 @@ def photo_upload():
 @blueprint.route("/uploads/<filename>")
 def uploads(filename):
     return send_from_directory(Config.UPLOAD_FOLDER, filename)
-
-
-@blueprint.route("/order/set", methods=["POST"])
-def order_set():
-    return controller.order_set(request.get_json())
-
-
-@blueprint.route("/order/schedule", methods=["GET"])
-def order_schedule():
-    offset = request.args.get('offset', None)
-    return controller.order_schedule(offset)
-
-
-@blueprint.route("/shipping/day", methods=["GET"])
-def shipping_day():
-    offset = request.args.get('offset', None)
-    return controller.shipping_day(offset)
-
-
 
 
 @socketio.on("connect")
@@ -117,12 +125,6 @@ def handle_disconnect():
     logging.info("Cliente desconectado")
 
 
-@socketio.on("message")
-def handle_message(data):
-    logging.info(f"Mensaje recibido: {data}")
-    emit("server_response", {"message": f"Recibido: {data}"}, broadcast=True)
-
-
 @socketio.on("update_schedule")
 def handle_update(data):
     #controller.send_message(data)
@@ -130,9 +132,9 @@ def handle_update(data):
     emit("update_schedule", {}, broadcast=True)
 
 
-@socketio.on("on_the_way")
+"""@socketio.on("on_the_way")
 def handle_on_the_way(data):
-    controller.send_message(data)
+    controller.send_message(data)"""
     #logging.info(f"Mensaje recibido: {phone}")
     #emit("update_schedule", {}, broadcast=True)
     

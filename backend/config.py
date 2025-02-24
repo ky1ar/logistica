@@ -32,3 +32,8 @@ class Twilio:
     ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
     AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
     PHONE = os.getenv("TWILIO_PHONE")
+
+
+class ApisNet:
+    TOKEN = os.getenv("APISNET_TOKEN")
+    URL = os.getenv("APISNET_URL")

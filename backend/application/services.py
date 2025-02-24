@@ -1,16 +1,19 @@
 import logging
+import requests
 import json
 
 from application import redis_client
-from config import Twilio
+from config import Twilio, ApisNet
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
 from datetime import date, datetime, timezone, timedelta
-from application.models import Users, PurchaseOrders, Drivers, Districts, ShippingTypes
+from application.models import Users, ShippingOrders, ShippingDistricts, ShippingMethod, ShippingContact
 from application.handlers import handle_exceptions, handle_db_exceptions
 from sqlalchemy.orm import joinedload
 from sqlalchemy import asc
 from flask import g
+from application import socketio
+
 
 logging.getLogger("twilio").setLevel(logging.ERROR)
 
@@ -35,7 +38,7 @@ class BaseService:
 
         message_body = messages.get(template, "Hola, tu pedido ha sido actualizado. 📦")  # Mensaje por defecto
 
-        try:
+        """try:
             media_url = None
             if template == 4:
                 media_url = f"https://logistica.munoz.pe/api/uploads/{file}"
@@ -43,13 +46,13 @@ class BaseService:
             message = self.client.messages.create(
                 from_=f"whatsapp:{Twilio.PHONE}",
                 body=message_body,
-                to=f"whatsapp:+{phone}",
+                to=f"whatsapp:+51{phone}",
                 media_url=[media_url] if media_url else None
             )
             logging.info(message)
         except TwilioRestException as e:
             logging.error(f"Error al enviar SMS: {e.msg}", exc_info=True)
-            return e.msg, e.status
+            return e.msg, e.status"""
 
         return "Message sent successfully", 200
 
@@ -59,31 +62,104 @@ class BaseService:
     def get_user_by_email(self, email):
         user = g.db_session.query(Users).filter_by(email=email).first()
         if not user:
-            return 'Usuario no encontrado', 400
-        
-        #user_data = user.to_dict()
-        #fields_to_remove = ['password', 'role', 'image', 'nick', 'stamp'] 
-
-        #for field in fields_to_remove:
-        #    user_data.pop(field, None) 
+            return 'DNI o contraseña incorrecta', 400
 
         return user, 200
 
+
+    def get_apis(self, path, params):
+        url = f"{ApisNet.URL}{path}"
+
+        headers = {
+            "Authorization": f"Bearer {ApisNet.TOKEN}",
+            "Referer": "python-requests"
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code == 200:
+            return response.json(), 200
+        elif response.status_code == 422:
+            logging.warning(f"{response.url} - invalida params", params=params)
+            logging.warning(response.text)
+        elif response.status_code == 403:
+            logging.warning(f"{response.url} - IP blocked")
+        elif response.status_code == 429:
+            logging.warning(f"{response.url} - Many requests add delay")
+        elif response.status_code == 401:
+            logging.warning(f"{response.url} - Invalid token or limited")
+        else:
+            logging.warning(f"{response.url} - Server Error status_code={response.status_code}")
+        return None, 400
+    
+
+    def get_person(self, dni):
+        return self.get_apis("/v2/reniec/dni", {"numero": dni})
+
+    def get_company(self, ruc):
+        return self.get_apis("/v2/sunat/ruc", {"numero": ruc})
+    
+
+    @handle_db_exceptions
+    def get_user(self, document):
+        if len(document) not in (8, 11):
+            return "Documento inválido", 400
+        
+        user_key = f"user:{document}"
+        user_cache = redis_client.get(user_key)
+        if user_cache:
+            logging.info('From redis')
+            return json.loads(user_cache), 200
+        
+        user = g.db_session.query(Users).filter_by(document=document).first()
+        if user:
+            user_data = user.to_dict(exclude_fields=['password', 'stamp'])
+            if 'phone' in user_data and user_data['phone']:
+                user_data['phone'] = user_data['phone'][2:]
+            redis_client.set(user_key, json.dumps(user_data))
+            return user_data, 200
+
+        document_key = f"document:{document}"
+        document_cache = redis_client.get(document_key)
+        if document_cache:
+            logging.info('From redis')
+            return {"name": document_cache}, 200
+        
+        if len(document) == 8:
+            person, person_status = self.get_person(document)
+            if person_status != 200:
+                return person, person_status
+            
+            name = f"{person.get('nombres')} {person.get('apellidoPaterno')} {person.get('apellidoMaterno')}"
+            formated = name.title()
+            redis_client.set(document_key, formated)
+            return {"name": formated}, 200
+        
+        company, company_status = self.get_company(document)
+        if company_status != 200:
+            return company, company_status
+        
+        formated = company.get('razonSocial').title()
+        redis_client.set(document_key, formated)
+        return {"name": formated}, 200
+    
 
     @handle_db_exceptions
     def get_user_by_document(self, document):
         user = g.db_session.query(Users).filter_by(document=document).first()
         if not user:
-            return 'User not found', 400
+            return 'Usuario no encontrado', 400
+
+        return user, 200
+
+
+    @handle_db_exceptions
+    def get_user_by_id(self, user_id):
+        user = g.db_session.query(Users).filter_by(id=user_id).first()
+        if not user:
+            return 'Usuario no encontrado', 400
         
-        user_data = user.to_dict()
-        fields_to_remove = ['password', 'role', 'image', 'nick', 'stamp'] 
-
-        for field in fields_to_remove:
-            user_data.pop(field, None) 
-
-        return user_data, 200
-
+        return user, 200
+    
 
     @handle_db_exceptions
     def add_client(self, client):
@@ -95,7 +171,7 @@ class BaseService:
             document=client.get("document"),
             name=client.get("name"),
             email=client.get("email"),
-            phone=client.get("phone"),
+            phone=f'51{client.get("phone")}',
             password="password",
             stamp=peru_time,
         )
@@ -109,15 +185,25 @@ class BaseService:
     
 
     @handle_db_exceptions
-    def get_order_by_number(self, number):
+    def update_client(self, client, data):
+        client.email = data.get("email")
+        client.phone = f'51{data.get("phone")}'
+
+        g.db_session.add(client)
+        g.db_session.commit()
+        user_key = f"user:{client.document}"
+        redis_client.delete(user_key)   
+        return "Cliente actualizado correctamente", 200
+    
+
+    @handle_db_exceptions
+    def get_shipping_by_order_number(self, order_number):
         purchase_order = (
-            g.db_session.query(PurchaseOrders)
-            .filter_by(number=number)
+            g.db_session.query(ShippingOrders)
+            .filter(ShippingOrders.order_number == order_number)
+            .filter(ShippingOrders.is_deleted.is_(False))
             .options(
-                joinedload(PurchaseOrders.client),
-                joinedload(PurchaseOrders.district),
-                joinedload(PurchaseOrders.driver),
-                joinedload(PurchaseOrders.shipping_type)
+                joinedload(ShippingOrders.contacts).joinedload(ShippingContact.client)
             )
             .first()
         )
@@ -128,26 +214,127 @@ class BaseService:
         return purchase_order, 200
  
 
-    
     @handle_db_exceptions
-    def get_orders_by_status(self, status):
-        purchase_orders = g.db_session.query(PurchaseOrders).filter_by(shipping_status_id=status).order_by(asc(PurchaseOrders.creation_date)).all()
-        if not purchase_orders:
-            return 'No se encontraron ordenes de pedido para este estado', 400
+    def add_shipping_order(self, data):
+
+        new_shipping_order = ShippingOrders(
+            order_number=data.get("order_number"),
+            #client_id=data.get("client_id"),
+            method_id=data.get("method_id"),
+            driver_id=data.get("driver_id"),
+            vendor_id=data.get("vendor_id"),
+            admin_id=data.get("admin_id"),
+            status_id=1,
+            address=data.get("address"),
+            district_id=data.get("district_id"),
+            comments=data.get("comments"),
+            register_date=data.get("register_date"),
+        )
+
+        g.db_session.add(new_shipping_order)
+        g.db_session.flush()
+        shipping_order_id = new_shipping_order.id
+        g.db_session.commit()
+        logging.info(f"New shipping order added to DB with id {shipping_order_id}")
+        return shipping_order_id, 200
+
+
+    @handle_db_exceptions
+    def add_shipping_contact(self, shipping_order_id, client_id):
+        #utc_now = datetime.now(timezone.utc)
+        #peru_time = utc_now - timedelta(hours=5)
+
+        new_shipping_contact = ShippingContact(
+            order_id=shipping_order_id,
+            client_id=client_id,
+        )
+
+        g.db_session.add(new_shipping_contact)
+        g.db_session.commit()
+        logging.info("New shipping contact added to DB")
+        return True, 200
+    
+
+    @handle_db_exceptions
+    def update_shipping_order_data(self, shipping, updated_fields):
+        for field, value in updated_fields.items():
+            setattr(shipping, field, value)
+        g.db_session.add(shipping)
+        g.db_session.commit()
+        logging.info(f"Shipping order {shipping.order_number} updated: {updated_fields}")
+        return True
+
+
+    @handle_db_exceptions
+    def update_shipping_order(self, order, data):
+        if "delivery_date" in data:
+            order.delivery_date = data["delivery_date"]
+        if "status_id" in data:
+            order.status_id = data["status_id"]
+        if "schedule_id" in data:
+            order.schedule_id = data["schedule_id"]
+        if "proof_photo" in data:
+            order.proof_photo = data["proof_photo"]
+
+        g.db_session.add(order)
+        g.db_session.commit()
+        socketio.emit("update_schedule", {})
+        return "Orden actualizada correctamente", 200
+    
+
+    @handle_db_exceptions
+    def delete_shipping_order(self, shipping_order):
+        shipping_order.is_deleted = True
+        g.db_session.add(shipping_order)
+        g.db_session.commit()
+        socketio.emit("update_schedule", {})
+        return "Orden eliminada correctamente", 200
+    
+
+    @handle_db_exceptions
+    def get_scheduled_shippings(self, start_date, end_date):
+        shipping_orders = (
+            g.db_session.query(ShippingOrders)
+            .filter(ShippingOrders.delivery_date >= start_date, ShippingOrders.delivery_date <= end_date)
+            .filter(ShippingOrders.is_deleted.is_(False))
+            .filter(ShippingOrders.status_id != 1)
+            .options(
+                joinedload(ShippingOrders.contacts).joinedload(ShippingContact.client)
+            )
+            .all()
+        )
         
         result = []
-        for purchase_order in purchase_orders:
-            creation_date = purchase_order.creation_date.strftime("%Y-%m-%d")
+        if not shipping_orders:
+            return result, 200
+        
+        for shipping in shipping_orders:
+            register_date = shipping.register_date.strftime("%Y-%m-%d")
+            delivery_date = shipping.delivery_date.strftime("%Y-%m-%d")
 
             order_data = {
-                "address": purchase_order.address,
-                "client_name": purchase_order.client.name.title(),
-                "creation_date": creation_date,
-                "district_name": purchase_order.district.name,
-                "number": purchase_order.number,
-                "shipping_type_name": purchase_order.shipping_type.name,
-                "shipping_type_slug": purchase_order.shipping_type.slug,
+                "address": shipping.address,
+                "register_date": register_date,
+                "delivery_date": delivery_date,
+                "district_name": shipping.district.name,
+                "order_number": shipping.order_number,
+                "method_name": shipping.method.name,
+                "method_slug": shipping.method.slug,
+                "schedule_name": shipping.schedule.name,
+                "schedule_id": shipping.schedule_id,
+                "status_id": shipping.status_id,
+                "status_name": shipping.status.name,
+                "contacts": []
             }
+            for contact in shipping.contacts:
+                contact_data = {
+                    "name": contact.client.name.title(),
+                    "document": contact.client.document,
+                    "email": contact.client.email,
+                    "phone": contact.client.phone[2:],
+                    "document_id": contact.client.id
+                }
+                order_data["contacts"].append(contact_data)
 
             result.append(order_data)
 
@@ -155,80 +342,45 @@ class BaseService:
     
 
     @handle_db_exceptions
-    def add_order(self, data):
-        #utc_now = datetime.now(timezone.utc)
-        #peru_time = utc_now - timedelta(hours=5)
-
-        new_purchase_order = PurchaseOrders(
-            number=data.get("purchase_order_number"),
-            client_id=data.get("client_id"),
-            shipping_type_id=data.get("shipping_type_id"),
-            driver_id=data.get("driver_id"),
-            admin_id=data.get("admin_id"),
-            address=data.get("address"),
-            district_id=data.get("district_id"),
-            creation_date=data.get("creation_date"),
-            comments=data.get("comments"),
-            shipping_status_id=1,
-            send_email=data.get("send_email"),
-        )
-
-        g.db_session.add(new_purchase_order)
-        g.db_session.commit()
-        logging.info("New purchase rder added to DB")
-        return "Orden registrada correctamente", 200
-
-
-    @handle_db_exceptions
-    def set_order(self, order, data):
-        if "shipping_date" in data:
-            order.shipping_date = data["shipping_date"]
-        if "shipping_status_id" in data:
-            order.shipping_status_id = data["shipping_status_id"]
-        if "shipping_schedule_id" in data:
-            order.shipping_schedule_id = data["shipping_schedule_id"]
-        if "filepath" in data:
-            order.image_path = data["filepath"]
-
-        g.db_session.add(order)
-        g.db_session.commit()
-        return "Orden actualizada correctamente", 200
-    
-
-    @handle_db_exceptions
-    def get_scheduled_orders(self, start_date, end_date):
-        purchase_orders = (
-            g.db_session.query(PurchaseOrders)
-            .filter(PurchaseOrders.shipping_date >= start_date, PurchaseOrders.shipping_date <= end_date)
-            .filter(PurchaseOrders.shipping_status_id != 1)
+    def get_orders_by_status(self, status_id):
+        shipping_orders = (
+            g.db_session.query(ShippingOrders)
+            .filter(ShippingOrders.status_id == status_id)
+            .filter(ShippingOrders.is_deleted.is_(False))
+            .options(
+                joinedload(ShippingOrders.contacts).joinedload(ShippingContact.client)
+            )
+            .order_by(asc(ShippingOrders.register_date))
             .all()
         )
+
+        if not shipping_orders:
+            return 'No se encontraron ordenes de pedido para este estado', 400
         
         result = []
-        if not purchase_orders:
-            return result, 200
-        
-        for purchase_order in purchase_orders:
-            creation_date = purchase_order.creation_date.strftime("%Y-%m-%d")
-            shipping_date = purchase_order.shipping_date.strftime("%Y-%m-%d")
-
+        for shipping in shipping_orders:
+            register_date = shipping.register_date.strftime("%Y-%m-%d")
 
             order_data = {
-                "address": purchase_order.address,
-                "client_name": purchase_order.client.name.title(),
-                "client_phone": purchase_order.client.phone,
-                "creation_date": creation_date,
-                "shipping_date": shipping_date,
-                "district_name": purchase_order.district.name,
-                "number": purchase_order.number,
-                "shipping_type_name": purchase_order.shipping_type.name,
-                "shipping_type_slug": purchase_order.shipping_type.slug,
-                "shipping_schedule_name": purchase_order.shipping_schedule.name,
-                "schedule": purchase_order.shipping_schedule_id,
-                "shipping_status_id": purchase_order.shipping_status_id,
-                "shipping_status_name": purchase_order.shipping_status.name,
-                "send_email": purchase_order.send_email
+                "address": shipping.address,
+                #"client_name": shipping.client.name.title(),
+                "register_date": register_date,
+                "district_name": shipping.district.name,
+                "order_number": shipping.order_number,
+                "method_name": shipping.method.name,
+                "method_slug": shipping.method.slug,
+                "contacts": []
             }
+
+            for contact in shipping.contacts:
+                contact_data = {
+                    "name": contact.client.name.title(),
+                    "document": contact.client.document,
+                    "email": contact.client.email,
+                    "phone": contact.client.phone,
+                    "document_id": contact.client.id
+                }
+                order_data["contacts"].append(contact_data)
 
             result.append(order_data)
 
@@ -254,9 +406,9 @@ class BaseService:
         start_date += timedelta(weeks=offset)
         end_date += timedelta(weeks=offset)
 
-        scheduled_orders, scheduled_orders_status = self.get_scheduled_orders(start_date, end_date)
-        if scheduled_orders_status != 200:
-            return scheduled_orders, scheduled_orders_status
+        scheduled_shippings, scheduled_shippings_status = self.get_scheduled_shippings(start_date, end_date)
+        if scheduled_shippings_status != 200:
+            return scheduled_shippings, scheduled_shippings_status
         
         schedule_by_day = []
         for i in range(6):
@@ -267,11 +419,11 @@ class BaseService:
 
             day_name_with_number = f"{day_name_es} {day.day}"
 
-            day_orders = [order for order in scheduled_orders if order['shipping_date'] == day_str]
+            day_orders = [order for order in scheduled_shippings if order['delivery_date'] == day_str]
 
             schedule_orders = {1: [], 2: []}
             for order in day_orders:
-                schedule_orders.setdefault(order["schedule"], []).append(order)
+                schedule_orders.setdefault(order["schedule_id"], []).append(order)
                 
             schedule_by_day.append({
                 "date": day_str,
@@ -304,15 +456,15 @@ class BaseService:
         day_name_es = DAYS_IN_SPANISH.get(day_name, day_name)
         day_name_with_number = f"{day_name_es} {day_of_interest.day}"
 
-        scheduled_orders, scheduled_orders_status = self.get_scheduled_orders(day_of_interest, day_of_interest)
+        scheduled_orders, scheduled_orders_status = self.get_scheduled_shippings(day_of_interest, day_of_interest)
         if scheduled_orders_status != 200:
             return scheduled_orders, scheduled_orders_status
         
-        day_orders = [order for order in scheduled_orders if order['shipping_date'] == day_str]
+        day_orders = [order for order in scheduled_orders if order['delivery_date'] == day_str]
 
         schedule_orders = {1: [], 2: []}
         for order in day_orders:
-            schedule_orders.setdefault(order["schedule"], []).append(order)
+            schedule_orders.setdefault(order["schedule_id"], []).append(order)
 
         return {
             "date": day_str,
@@ -326,22 +478,32 @@ class BaseService:
 
     @handle_db_exceptions
     def get_drivers(self):
-        drivers = g.db_session.query(Drivers).all()
+        drivers = g.db_session.query(Users).filter_by(levels=5).all()
         if not drivers:
             return 'Drivers not found', 400
         
-        return [driver.to_dict() for driver in drivers], 200
+        return [driver.to_dict(exclude_fields=['password', 'stamp']) for driver in drivers], 200
+    
+
+    @handle_db_exceptions
+    def get_vendors(self):
+        vendors = g.db_session.query(Users).filter_by(levels=6).all()
+        if not vendors:
+            return 'Vendors not found', 400
+        
+        return [vendor.to_dict(exclude_fields=['password', 'stamp']) for vendor in vendors], 200
     
 
     @handle_db_exceptions
     def get_districts(self):
-        cache_key = "districts:list"
+        cache_key = "district:list"
 
         cached = redis_client.get(cache_key)
         if cached:
+            logging.info('From redis')
             return json.loads(cached), 200 
         
-        districts = g.db_session.query(Districts).order_by(Districts.name).all()
+        districts = g.db_session.query(ShippingDistricts).order_by(ShippingDistricts.name).all()
         if not districts:
             return 'Districts not found', 400
         
@@ -354,13 +516,14 @@ class BaseService:
 
     @handle_db_exceptions
     def get_shipping_types(self):
-        cache_key = "shipping_types:list"
+        cache_key = "shipping_method:list"
 
         cached = redis_client.get(cache_key)
         if cached:
+            logging.info('From redis')
             return json.loads(cached), 200 
         
-        shipping_types = g.db_session.query(ShippingTypes).all()
+        shipping_types = g.db_session.query(ShippingMethod).all()
         if not shipping_types:
             return 'Shipping Types not found', 400
         

@@ -1,9 +1,9 @@
 import logging, re
 
-from application import bcrypt
+from application import bcrypt, socketio
 from application.services import BaseService
 from application.handlers import handle_logs_and_exceptions, validate_request
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token
 
 class BaseController:
     def __init__(self):
@@ -21,12 +21,17 @@ class BaseController:
         if not document:
             return 'Missing document', 400
         
-        return self.service.get_user_by_document(document)
+        return self.service.get_user(document)
     
 
     @handle_logs_and_exceptions
     def general_drivers(self):
         return self.service.get_drivers()
+    
+
+    @handle_logs_and_exceptions
+    def general_vendors(self):
+        return self.service.get_vendors()
     
 
     @handle_logs_and_exceptions
@@ -40,151 +45,208 @@ class BaseController:
 
     @handle_logs_and_exceptions
     def order_get_by_number(self, number):
-        order, order_status = self.service.get_order_by_number(number)
+        shipping_order, order_status = self.service.get_shipping_by_order_number(number)
         if order_status != 200:
-            return order, order_status
+            return shipping_order, order_status
         
-        result = order.to_dict()
+        result = shipping_order.to_dict()
         result.update({
-            "client_name": order.client.name,
-            "client_document": order.client.document,
-            "client_email": order.client.email,
-            "client_phone": order.client.phone,
-            "client_document_id": order.client.id,
-            "district_name": order.district.name,
-            "driver_name": order.driver.name,
-            "shipping_type_name": order.shipping_type.name,
-            "creation_date_format": order.creation_date.strftime("%Y-%m-%d")
+            "district_name": shipping_order.district.name,
+            "driver_name": shipping_order.driver.name,
+            "method_name": shipping_order.method.name,
+            "register_date_format": shipping_order.register_date.strftime("%Y-%m-%d")
         })
+
+        contacts = []
+        for contact in shipping_order.contacts:
+            contacts.append({
+                "name": contact.client.name.title(),
+                "document": contact.client.document,
+                "email": contact.client.email,
+                "phone": contact.client.phone[2:],
+                "document_id": contact.client.id
+            })
+        
+        result["contacts"] = contacts 
+
         return result, 200
         
 
     @handle_logs_and_exceptions
     def order_get_pending(self):
-        orders, orders_status = self.service.get_orders_by_status(status=1)
-        if orders_status != 200:
-            return orders, orders_status
-        
-        return orders, 200
+        return self.service.get_orders_by_status(status_id=1)
 
 
     @handle_logs_and_exceptions
-    def order_add(self, request):
+    def order_process(self, request):
         if validation_error := validate_request(
             request, 
-            {"purchase_order_number", "shipping_type_id", "driver_id", "admin_id" ,"address" ,"district_id" ,"creation_date" ,"send_email", "comments"}
+            {"edit", "order_number", "method_id", "driver_id", "admin_id" ,"address" ,"district_id" ,"register_date", "comments"}
         ):
             return validation_error, 400
 
-        number = request.get("purchase_order_number")
-        shipping_type = request.get("shipping_type_id")
-        creation_date = request.get("creation_date")
+        order_number = request.get("order_number", "").strip()
+        edit = request.get("edit")
+        method_id = request.get("method_id")
+        register_date = request.get("register_date")
         district_id = request.get("district_id")
-        address = request.get("address")
+        address = request.get("address", "").strip()
 
-        if not number.strip():
+        if not order_number:
             return "Ingrese el número de orden", 400
 
-        get_order, get_order_status = self.service.get_order_by_number(number)
-        if get_order_status == 500:
-            return get_order, get_order_status
+        shipping, shipping_status = self.service.get_shipping_by_order_number(order_number)
+        if shipping_status == 500:
+            return shipping, shipping_status
 
-        if get_order_status == 200:
+        if edit:
+            if shipping_status != 200:
+                return "Orden de pedido no encontrada para edición", 400
+            
+            if not method_id:
+                return "Seleccione un tipo de envío", 400
+            if not register_date:
+                return "Ingrese la fecha de registro", 400
+            if not address:
+                return "Ingrese la dirección", 400
+            if not district_id:
+                return "Seleccione un distrito", 400
+
+            updated_fields = {}
+            if shipping.method_id != method_id:
+                updated_fields["method_id"] = method_id
+            if shipping.register_date != register_date:
+                updated_fields["register_date"] = register_date
+
+            if shipping.address != address:
+                updated_fields["address"] = address
+            if shipping.district_id != district_id:
+                updated_fields["district_id"] = district_id
+            if shipping.maps != request.get("maps"):
+                updated_fields["maps"] = request.get("maps")
+            if shipping.vendor_id != request.get("vendor_id"):
+                updated_fields["vendor_id"] = request.get("vendor_id")
+            if shipping.driver_id != request.get("driver_id"):
+                updated_fields["driver_id"] = request.get("driver_id")
+
+            if updated_fields:
+                self.service.update_shipping_order_data(shipping, updated_fields)
+            
+            socketio.emit("update_schedule", {})
+            return "Orden actualizada correctamente", 200
+        
+        if shipping_status == 200:
             return "Este número de orden ya ha sido registrado", 400
         
-        if not shipping_type:
+        if not method_id:
             return "Seleccione un tipo de envío", 400
-        
-        if not creation_date:
-            return "Ingrese la fecha de creación", 400
-        
-        client_id = request.get("client_id")
-        if not client_id:
-            client = request.pop("client")
-            document = client.get("document")
-            email = client.get("email")
-            name = client.get("name")
-            phone = client.get("phone")
-
-            if not document.strip():
-                return "Ingrese el documento", 400
-
-            if not bool(re.fullmatch(r'\d{8}|\d{11}', document)):
-                return "Ingrese un documento válido", 400
-            
-            if not name.strip():
-                return "Ingrese el nombre/Razón Social", 400
-            
-            if not email.strip():
-                return "Ingrese el email", 400
-            
-            if not phone.strip():
-                return "Ingrese el teléfono", 400
-            
-            get_user, get_user_status = self.service.get_user_by_document(document)
-            if get_user_status == 500:
-                return get_user, get_user_status
-
-            if get_user_status == 200:
-                return "El documento ya se encuentra registrado", 400
-            
-            added_client, added_client_status = self.service.add_client(client)
-            if added_client_status != 200:
-                return added_client, added_client_status
-            
-            request["client_id"] = added_client
-
-        if not address.strip():
+        if not register_date:
+            return "Ingrese la fecha de registro", 400
+        if not address:
             return "Ingrese la dirección", 400
-        
         if not district_id:
             return "Seleccione un distrito", 400
         
-        return self.service.add_order(request)
+        client_id = request.get("client_id")
+        client_data = request.pop("client")
+
+        document = client_data.get("document", "").strip()
+        email = client_data.get("email", "").strip()
+        name = client_data.get("name", "").strip()
+        phone = client_data.get("phone", "").strip()
+
+        if not email:
+            return "Ingrese el email", 400
+        if not phone or len(phone) != 9:
+            return "Ingrese un celular válido", 400
+    
+        if client_id:
+            client, client_status = self.service.get_user_by_id(client_id)
+            if client_status != 200:
+                return client, client_status
+            self.service.update_client(client, client_data)
+        else:
+            if not document:
+                return "Ingrese el documento", 400
+            if len(document) not in (8, 11):
+                return "Ingrese un documento válido", 400
+            if not name:
+                return "Ingrese un documento válido", 400
+            
+            added_client, added_client_status = self.service.add_client(client_data)
+            if added_client_status != 200:
+                return added_client, added_client_status
+            client_id = added_client
+        
+        shipping_order_id, shipping_order_status = self.service.add_shipping_order(request)
+        if shipping_order_status != 200:
+            return shipping_order_id, shipping_order_status
+
+        shipping_contact, shipping_contact_status = self.service.add_shipping_contact(shipping_order_id, client_id)
+        if shipping_contact_status != 200:
+            return shipping_contact, shipping_contact_status
+        
+        socketio.emit("update_schedule", {})
+        return "Orden registrada correctamente", 200
 
 
     @handle_logs_and_exceptions
     def photo_upload(self, request):
         if validation_error := validate_request(
             request, 
-            {"order_number", "filepath"}
+            {"order_number", "proof_photo"}
         ):
             return validation_error, 400
 
-        number = request.pop("order_number")
-        order, order_status = self.service.get_order_by_number(number)
+        order_number = request.pop("order_number")
+        order, order_status = self.service.get_shipping_by_order_number(order_number)
         if order_status != 200:
             return order, order_status
         
-        return self.service.set_order(order, request)
+        return self.service.update_shipping_order(order, request)
 
 
     @handle_logs_and_exceptions
     def order_set(self, request):
         if validation_error := validate_request(
             request, 
-            {"purchase_order_number", "admin_id"}
+            {"order_number", "admin_id"}
         ):
             return validation_error, 400
 
-        number = request.get("purchase_order_number")
-        shipping_status_id = request.get("shipping_status_id")
-
-        order, order_status = self.service.get_order_by_number(number)
-        if order_status != 200:
-            return order, order_status
+        order_number = request.get("order_number")
+        shipping_order, shipping_order_status = self.service.get_shipping_by_order_number(order_number)
+        if shipping_order_status != 200:
+            return shipping_order, shipping_order_status
         
-        if shipping_status_id == 4 or shipping_status_id == 6:
-            data = {
-                "phone": order.client.phone,
-                "user": order.client.name,
-                "file": order.image_path
-            }
+        status_id = request.get("status_id")
+        #if status_id == 3 or status_id == 4 or status_id == 6:
+        #    data = {
+        #        "phone": shipping_order.client.phone,
+        #        "user": shipping_order.client.name,
+        #        "file": shipping_order.image_path
+        #    }
 
-            self.service.send_message(data,template=shipping_status_id)
+        #    self.service.send_message(data,template=status_id)
         
-        return self.service.set_order(order, request)
+        return self.service.update_shipping_order(shipping_order, request)
 
+
+    @handle_logs_and_exceptions
+    def order_delete(self, request):
+        if validation_error := validate_request(
+            request, 
+            {"order_number", "admin_id"}
+        ):
+            return validation_error, 400
+
+        order_number = request.get("order_number")
+        shipping_order, shipping_order_status = self.service.get_shipping_by_order_number(order_number)
+        if shipping_order_status != 200:
+            return shipping_order, shipping_order_status
+        
+        return self.service.delete_shipping_order(shipping_order)
+    
 
     @handle_logs_and_exceptions
     def order_schedule(self, offset=0):
@@ -200,29 +262,30 @@ class BaseController:
     def user_login(self, request):
         if validation_error := validate_request(
             request, 
-            {"email", "password"}
+            {"document", "password"}
         ):
             return validation_error, 400
         
-        email = request.get("email")
+        document = request.get("document")
         password = request.get("password")
-        user, user_status = self.service.get_user_by_email(email)
-        if user_status != 200:
+
+        user, user_status = self.service.get_user_by_document(document)
+        if user_status == 500:
             return user, user_status
-        logging.info(user.to_dict())
+        
+        if user_status == 400:
+            return "DNI o contraseña incorrecta", user_status
+        
+        if user.levels == 1:
+            return "No cuentas con acceso al sistema", 400
+
         if bcrypt.check_password_hash(user.password.encode('utf-8'), password.encode('utf-8')):
             access_token = create_access_token(identity=str(user.id))
 
-            data = user.to_dict()
-            response = {
-                "token": access_token,
-                "user_id": data["id"],
-                "level": data["levels"],
-                "name": data["name"],
-                "role": data["role"],
-                "document": data["document"],
-            }
-            return response, 200
+            data = user.to_dict(exclude_fields=['password', 'stamp'])
+            data.update({
+                "token": access_token
+            })
+            return data, 200
         
-
-        return "Contraseña incorrecta", 400
+        return "DNI o contraseña incorrecta", 400

@@ -10,7 +10,8 @@ from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
-
+from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -34,10 +35,25 @@ def api_key_required():
         return None
     
 
+def reconnect_db():
+    if not hasattr(g, "db_session"):
+        g.db_session = db.session
+
+    try:
+        g.db_session.execute(text("SELECT 1")) 
+    except OperationalError:
+        db.engine.dispose() 
+        g.db_session.remove()
+        g.db_session = db.session
+
+
 @app.before_request
-def handle_before_request():
-    g.db_session = db.session
-    return api_key_required()
+def before_request():
+    if request.path == "/":
+        log = logging.getLogger("werkzeug")
+        log.setLevel(logging.ERROR)
+
+    reconnect_db()
 
 
 @app.teardown_request
