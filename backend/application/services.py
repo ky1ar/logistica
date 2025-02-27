@@ -313,7 +313,7 @@ class BaseService:
             delivery_date = shipping.delivery_date.strftime("%Y-%m-%d")
 
             order_data = {
-                "address": shipping.address,
+                "address": shipping.address.title(),
                 "register_date": register_date,
                 "delivery_date": delivery_date,
                 "district_name": shipping.district.name,
@@ -364,7 +364,7 @@ class BaseService:
             register_date = shipping.register_date.strftime("%Y-%m-%d")
 
             order_data = {
-                "address": shipping.address,
+                "address": shipping.address.title(),
                 #"client_name": shipping.client.name.title(),
                 "register_date": register_date,
                 "district_name": shipping.district.name,
