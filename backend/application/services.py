@@ -1,8 +1,10 @@
 import logging
 import requests
 import json
+import firebase_admin
 
 from application import redis_client
+from firebase_admin import messaging, credentials
 from config import Twilio, ApisNet
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -20,6 +22,7 @@ logging.getLogger("twilio").setLevel(logging.ERROR)
 class BaseService:
 
     def __init__(self):
+        self.check_firebase_initialized()
         #self.sms_repository = SmsRepository()
         self.client = Client(Twilio.ACCOUNT_SID, Twilio.AUTH_TOKEN)
 
@@ -56,7 +59,78 @@ class BaseService:
 
         return "Message sent successfully", 200
 
+
+    @handle_exceptions
+    def check_firebase_initialized(self):
+        if not firebase_admin._apps:
+            cred = credentials.Certificate('serviceAccountKey.json')
+            firebase_admin.initialize_app(cred)
+            #logging.info("Firebase inicializado correctamente")
+
+
+    @handle_exceptions
+    def register_token(self, token):
+        logging.info(f"Registrando token: {token[:10]}...")
+        redis_client.sadd("fcm_tokens", token)
+        return "Token registrado con éxito", 200
+        
     
+    @handle_exceptions
+    def send_notification_test(self, data):
+        logging.info(f"Enviando notificación: {data}")
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title="¡Hola!",
+                body="Esto es una prueba de notificación"
+            ),
+            token='dbpGNoMCCxVnNO45Q8zJpi:APA91bGfOtwQJvPUou0fP__sbU9uXx5rdbtJhwRYbrsDS2wJMLCvwK8PaUkLLktanfmBcggqEqPdzq4TmjVhYyV95PBOsAqw7xLLTm_pHad6J74Mn2ztHRA'
+        )
+        response = messaging.send(message)
+        logging.info(response)
+        return True, 200
+    
+
+    @handle_db_exceptions
+    def send_notification(self, data):
+        #redis_client.delete("fcm_tokens")
+        #return True, 200
+        title = data.get("title", "Notificación")
+        body = data.get("body", "Tienes un nuevo mensaje")
+
+        tokens = list(redis_client.smembers("fcm_tokens"))
+        tokens = [t.decode("utf-8") if isinstance(t, bytes) else t for t in tokens]
+        tokens = [t for t in tokens if t.strip()]  # Filtrar vacíos
+
+        if not tokens:
+            logging.warning("No hay tokens registrados para enviar notificaciones")
+            return "No hay dispositivos registrados", 400
+
+        logging.info(f"Enviando a {len(tokens)} dispositivos")
+
+        # FCM permite máximo 500 tokens por petición, así que los dividimos en grupos
+        batch_size = 500
+        success_count = 0
+        failure_count = 0
+
+        try:
+            for i in range(0, len(tokens), batch_size):
+                batch_tokens = tokens[i:i + batch_size]
+                message = messaging.MulticastMessage(
+                    notification=messaging.Notification(title=title, body=body),
+                    tokens=batch_tokens
+                )
+
+                response = messaging.send_each_for_multicast(message)
+                success_count += response.success_count
+                failure_count += response.failure_count
+
+            logging.info(f"Notificaciones enviadas: {success_count}, fallidas: {failure_count}")
+            return True, 200
+        except Exception as e:
+            logging.error(f"Error enviando notificación: {e}", exc_info=True)
+            return False, 500
+
+
 
     @handle_db_exceptions
     def get_user_by_email(self, email):

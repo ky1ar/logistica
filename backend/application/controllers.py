@@ -10,6 +10,18 @@ class BaseController:
         self.service = BaseService()     
 
 
+    @handle_logs_and_exceptions
+    def register_token(self, data):
+        token = data.get("token")
+        if not token:
+            return 'Token no válido', 400
+        return self.service.register_token(token)
+    
+
+    @handle_logs_and_exceptions
+    def send_notification(self, data):
+        return self.service.send_notification(data)
+
 
     @handle_logs_and_exceptions
     def send_message(self, data):

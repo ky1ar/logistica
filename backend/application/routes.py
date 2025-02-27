@@ -114,6 +114,20 @@ def uploads(filename):
     return send_from_directory(Config.UPLOAD_FOLDER, filename)
 
 
+@blueprint.route("/register_token", methods=["POST"])
+def register_token():
+    return controller.register_token(request.get_json())
+
+
+@blueprint.route("/send_notification", methods=["POST"])
+def send_notification():
+    return controller.send_notification(request.get_json())
+    
+
+
+
+
+
 @socketio.on("connect")
 def handle_connect():
     logging.info("Cliente conectado")

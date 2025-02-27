@@ -62,6 +62,7 @@ function data() {
             order_number: '',
             method_id: null,
             method_name: '',
+            method_background: '',
             address: '',
             district_id: null,
             district_name: '',
@@ -74,6 +75,18 @@ function data() {
         socket: null,
         preview: null,
         imageFile: null,
+
+        firebaseConfig: {
+            apiKey: "AIzaSyDzSedMzfKT5L2LklmUQsMyvPEGfZ_0fcw",
+            authDomain: "krear3d-f9195.firebaseapp.com",
+            projectId: "krear3d-f9195",
+            storageBucket: "krear3d-f9195.firebasestorage.app",
+            messagingSenderId: "291592879896",
+            appId: "1:291592879896:web:674af68c5c7d1fe440a86d",
+            measurementId: "G-2CCET399W9"
+        },
+
+        messaging: null,
 
         async processShippingModal(shipping_number){
             if (shipping_number){
@@ -283,6 +296,7 @@ function data() {
                 order_number: '',
                 method_id: null,
                 method_name: '',
+                method_background: '',
                 address: '',
                 district_id: null,
                 district_name: '',
@@ -380,13 +394,125 @@ function data() {
 
         async init() {
             try {
+                console.log("Iniciando aplicación...");
+
+                if ("serviceWorker" in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    if (registrations.length > 1) {
+                        console.warn(`⚠️ Se detectaron ${registrations.length} Service Workers, eliminando duplicados...`);
+                        for (let i = 1; i < registrations.length; i++) {
+                            await registrations[i].unregister();
+                            console.log("🗑️ Service Worker eliminado:", registrations[i]);
+                        }
+                    }
+                }
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(this.firebaseConfig);
+                }
+                this.messaging = firebase.messaging();
+
+                if ("serviceWorker" in navigator) {
+                    const existingSW = await navigator.serviceWorker.getRegistrations();
+                    if (existingSW.length === 0) {
+                        await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+                        console.log("✅ Service Worker registrado");
+                    } else {
+                        console.log("🔄 Service Worker ya registrado");
+                    }
+                }
+
+                this.listenForMessages();
                 this.initSocket();
                 await this.loginVerify();
                 await this.fetchData();
 
+                await this.recoverFCMToken();
+                /*navigator.serviceWorker.getRegistrations().then(regs => {
+                    alert(`✅ Service Workers activos:${regs.length}`);
+                    regs.forEach(reg => console.log("🔍 SW activo:", reg));
+                });*/
+
             } catch (error) {
                 console.error('Error al iniciar la aplicación:', error.message);
             } 
+        },
+
+        async recoverFCMToken() {
+            try {
+                let existingToken = localStorage.getItem("fcm_token");
+                if (!existingToken) {
+                    console.warn("⚠️ No hay token en localStorage, solicitando nuevo...");
+                    await this.requestPermission();
+                    return;
+                }
+        
+                // Verificar si el token sigue siendo válido
+                const registration = await navigator.serviceWorker.ready;
+                const newToken = await this.messaging.getToken({
+                    vapidKey: "BPsd2S7djGQTrd2IUttk19xkLI4t7fNyeYXZLQKmnhVlkqCWWboHNbnSMx0B-cFc_QDrUqizmVlVC5TnSrLO3Q0",
+                    serviceWorkerRegistration: registration
+                });
+        
+                if (existingToken !== newToken) {
+                    console.log("🔄 Token cambiado, actualizando...");
+                    localStorage.setItem("fcm_token", newToken);
+                    await fetch("/api/register_token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: newToken })
+                    });
+                } else {
+                    console.log("✅ Token válido:", existingToken);
+                }
+            } catch (error) {
+                console.error("❌ Error recuperando el token de FCM:", error);
+            }
+        },
+
+        async requestPermission() {
+            try {
+                // Verificar si ya tenemos un token guardado
+                let existingToken = localStorage.getItem("fcm_token");
+                if (existingToken) {
+                    console.log("✅ Usando token existente:", existingToken);
+                    return; // Evita solicitar otro token
+                }
+        
+                const permission = await Notification.requestPermission();
+                if (permission !== "granted") {
+                    console.warn("⚠️ Permiso de notificación denegado");
+                    return;
+                }
+        
+                const registration = await navigator.serviceWorker.ready;
+                const token = await this.messaging.getToken({
+                    vapidKey: "BPsd2S7djGQTrd2IUttk19xkLI4t7fNyeYXZLQKmnhVlkqCWWboHNbnSMx0B-cFc_QDrUqizmVlVC5TnSrLO3Q0",
+                    serviceWorkerRegistration: registration
+                });
+        
+                if (token) {
+                    console.log("✅ Nuevo token generado:", token);
+                    localStorage.setItem("fcm_token", token); // Guardar el token
+                    await fetch("/api/register_token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token })
+                    });
+                }
+            } catch (error) {
+                console.error("❌ Error obteniendo token de FCM:", error);
+            }
+        },
+
+        listenForMessages() {
+            this.messaging.onMessage(payload => {
+                console.log("Mensaje recibido:", payload);
+                new Notification(payload.notification.title, {
+                    body: payload.notification.body,
+                    icon: payload.notification.icon || "/static/images/logo1.png"
+                });
+            });
         },
 
         initSocket() {

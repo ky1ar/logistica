@@ -20,8 +20,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/js/main.js?v=0.1.0.3"></script>
-    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.3">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+
+    <script src="static/js/main.js?v=0.1.0.43"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.43">
 
 </head>
 
@@ -65,7 +68,7 @@
                     <div class="home hover-opacity">
                         <img src="static/images/logo.svg" alt="Logo" width="160">
                     </div>
-
+                    <button @click="requestPermission()">Habilitar Notificaciones</button>
                     <template x-if="auth.level == 4">
                         <div class="navigation">
                             <ul>
@@ -383,6 +386,7 @@
                         </label>
 
                         <label class="percent33">
+                            <img alt="user" src="static/images/id.svg" width="16" height="16">
                             <input type="text" maxlength="11" @input="process_shipping.document = process_shipping.document.replace(/\D/g, '')" placeholder="DNI / RUC" x-model="process_shipping.document" @blur="fetchUserData()">
                             <input type="hidden" x-model="process_shipping.document_id">
                         </label>
@@ -407,6 +411,7 @@
                         </div>
                         
                         <label class="percent60">
+                            <img alt="user" src="static/images/location.svg" width="16" height="16">
                             <input type="text" placeholder="Dirección" x-model="process_shipping.address">
                         </label>
 
@@ -423,6 +428,7 @@
                         </label>
 
                         <label class="percent33">
+                            <img alt="user" src="static/images/link.svg" width="16" height="16">
                             <input type="text" placeholder="Link de Maps" x-model="process_shipping.maps">
                         </label>
 
@@ -448,7 +454,7 @@
                     </div>
                     
                     <div class="process_buttons">
-                        <template x-if="process_shipping.edit">
+                        <template x-if="process_shipping.edit && process_shipping.status_id != 3 && process_shipping.status_id != 4">
                             <button class="hover-opacity red" type="button" @click="deleteShipping()">
                                 <span>Eliminar</span>
                             </button>

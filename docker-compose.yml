@@ -3,7 +3,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: logistica_backend
+    container_name: logistica_backend_dev
     environment:
       - FLASK_APP=main.py
       - FLASK_ENV=development
@@ -12,36 +12,37 @@ services:
     volumes:
       - ./backend:/application
     ports:
-      - 6002:6002
+      - 6001:6001
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:6002/"]
+      test: ["CMD", "curl", "--fail", "http://localhost:6001/"]
       interval: 30s
       timeout: 10s
       retries: 5
     platform: linux/amd64
     restart: always
 
-  redis:
+  redis_dev:
     image: redis:latest
-    container_name: logistica_redis
+    container_name: logistica_redis_dev
     networks:
       - logistica_net
     ports:
-      - "6379:6379"
+      - "6378:6379"
+
     restart: always
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: logistica_frontend
+    container_name: logistica_frontend_dev
     networks:
       - logistica_net
     volumes:
       - ./frontend:/usr/share/nginx/html
     ports:
-      - 8002:80
-      - 4002:443
+      - 8001:80
+      - 4001:443
     restart: always
 
 networks:
