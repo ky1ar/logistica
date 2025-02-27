@@ -43,6 +43,7 @@ function data() {
         modal: {
             shipping: false,
             completed: false,
+            finish: false,
             transit: false,
             overlay: false,
         },
@@ -64,6 +65,7 @@ function data() {
             method_name: '',
             address: '',
             district_id: null,
+            driver_name: null,
             district_name: '',
             register_date: '',
             status_id: null,
@@ -261,6 +263,8 @@ function data() {
             this.modal = {
                 shipping: false,
                 completed: false,
+                finish: false,
+                transit: false,
                 overlay: false,
             };
   
@@ -285,6 +289,7 @@ function data() {
                 method_name: '',
                 address: '',
                 district_id: null,
+                driver_name: null,
                 district_name: '',
                 register_date: '',
                 status_id: null,
@@ -394,7 +399,7 @@ function data() {
                 this.socket = io("/");
         
                 this.socket.on("update_schedule", async () => {
-                    if (this.auth.level === 4) {
+                    if (this.auth.level === 3 || this.auth.level === 4) {
                         await Promise.all([this.getPendingShippings(), this.getSchedule()]);
                     } else {
                         await this.getShippingDay();
@@ -421,7 +426,7 @@ function data() {
         
         async fetchData() {
             try {
-                if (this.auth.level == 4) {
+                if (this.auth.level === 3 || this.auth.level === 4) {
                     const [drivers, vendors, districts, shippingMethod] = await Promise.all([
                         fetch('/api/general/drivers').then(res => res.json()),
                         fetch('/api/general/vendors').then(res => res.json()),
@@ -479,6 +484,7 @@ function data() {
                     method_name: shipping.method_name,
                     address: shipping.address,
                     district_id: shipping.district_id,
+                    driver_name: shipping.driver_name,
                     district_name: shipping.district_name,
                     register_date: shipping.register_date_format,
                     status_id: shipping.status_id,
@@ -531,7 +537,7 @@ function data() {
                 return;
             }
             this.offset = 0;
-            if (this.auth.level == 4) {
+            if (this.auth.level === 3 || this.auth.level === 4) {
                 await this.getSchedule();
             } else {
                 await this.getShippingDay();
@@ -540,7 +546,7 @@ function data() {
 
         async next() {
             this.offset++;
-            if (this.auth.level == 4) {
+            if (this.auth.level === 3 || this.auth.level === 4) {
                 await this.getSchedule();
             } else {
                 await this.getShippingDay();
@@ -549,7 +555,7 @@ function data() {
 
         async prev() {
             this.offset--;
-            if (this.auth.level == 4) {
+            if (this.auth.level === 3 || this.auth.level === 4) {
                 await this.getSchedule();
             } else {
                 await this.getShippingDay();

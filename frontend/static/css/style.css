@@ -222,23 +222,6 @@ body {
 #main .item-card:active {
     transform: scale(0.95);
 }
-#main .item-card.express {
-    background-color: #fff0de;
-    border: 2px solid #fcdab1;
-}
-#main .item-card.super-express {
-    background-color: #fee3e1;
-    border: 2px solid #ffceca;
-}
-#main .item-card.soporte {
-    background-color: #d0f4ea;
-    border: 2px solid #abe9d8;
-}
-#main .item-card.corporativo {
-    background-color: #e4d4fb;
-    border: 2px solid #d0beeb;
-}
-
 #main .item-card .district {
     font-size: 0.75rem;
     font-weight: 600;
@@ -270,33 +253,9 @@ body {
     position: absolute;
     bottom: -2px;
     right: -2px;
-    background-color: var(--white);
+    /*background-color: var(--white);*/
     padding: 0.25rem 0.75rem;
     border-radius: 0.75rem 0;
-}
-#main .item-card.express .status {
-    border: 2px solid #fcdab1;
-}
-#main .item-card.super-express .status {
-    border: 2px solid #ffceca;
-}
-#main .item-card.soporte .status {
-    border: 2px solid #abe9d8;
-}
-#main .item-card.corporativo .status {
-    border: 2px solid #d0beeb;
-}
-#main .item-card.express .full {
-    background-color: #fcdab1;
-}
-#main .item-card.super-express .full {
-    background-color: #ffceca;
-}
-#main .item-card.soporte .full {
-    background-color: #abe9d8;
-}
-#main .item-card.corporativo .full {
-    background-color: #d0beeb;
 }
 #main .item-card .phone {
     font-size: 0.75rem;
@@ -503,7 +462,7 @@ body {
     padding: 1.5rem;
     border-radius: 0.5rem;
     width: calc(100% - 2rem);
-    max-width: 32rem;
+    max-width: 34rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
 }
@@ -546,13 +505,13 @@ body {
     padding: 0.75rem;
     gap: 0.5rem;
 }
-#modal-shipping .contact img {
+#modal-shipping label img {
     position: absolute;
     left: 1rem;
     top: 50%;
     transform: translateY(-50%);
 }
-#modal-shipping .contact img + input{
+#modal-shipping label img + input{
     padding-left: 2.25rem;
 }
 #modal-shipping .contact .data {

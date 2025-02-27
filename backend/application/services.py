@@ -319,6 +319,8 @@ class BaseService:
                 "district_name": shipping.district.name,
                 "order_number": shipping.order_number,
                 "method_name": shipping.method.name,
+                "method_background": shipping.method.background,
+                "method_border": shipping.method.border,
                 "method_slug": shipping.method.slug,
                 "schedule_name": shipping.schedule.name,
                 "schedule_id": shipping.schedule_id,
@@ -369,6 +371,8 @@ class BaseService:
                 "order_number": shipping.order_number,
                 "method_name": shipping.method.name,
                 "method_slug": shipping.method.slug,
+                "method_background": shipping.method.background,
+                "method_border": shipping.method.border,
                 "contacts": []
             }
 
@@ -487,7 +491,7 @@ class BaseService:
 
     @handle_db_exceptions
     def get_vendors(self):
-        vendors = g.db_session.query(Users).filter_by(levels=6).all()
+        vendors = g.db_session.query(Users).filter(Users.levels.in_([6, 3])).order_by(Users.name).all()
         if not vendors:
             return 'Vendors not found', 400
         

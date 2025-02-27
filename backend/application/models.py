@@ -34,6 +34,9 @@ class ShippingMethod(BaseModel):
     id = db.Column(db.Integer, autoincrement=True, primary_key=True, nullable=False)
     name = db.Column(db.String(100))
     slug = db.Column(db.String(100))
+    background = db.Column(db.String(7))
+    border = db.Column(db.String(7))
+
 
 
 class ShippingStatus(BaseModel):
