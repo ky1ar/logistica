@@ -441,7 +441,7 @@ body {
     color: #888;
 }
 /***********************************************************************************/
-#main-overlay{
+#main-overlay {
     position: fixed;
     top: 0;
     bottom: 0;
@@ -450,6 +450,9 @@ body {
     background-color: rgba(0, 0, 0, 0.7);
     z-index: 3;
     opacity: 0.5;
+}
+#main-overlay.upper {
+    z-index: 5;
 }
 /***********************************************************************************/
 #modal-shipping {
@@ -465,6 +468,16 @@ body {
     max-width: 34rem;
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
+    box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 15%);
+}
+#modal-shipping.upper {
+    z-index: 6;
+    display: flex;
+    max-width: fit-content;
+    justify-content: center;
+}
+#modal-shipping .full-image {
+    object-fit: contain;
 }
 #modal-shipping.finish {
     max-width: 48rem;

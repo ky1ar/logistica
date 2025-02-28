@@ -20,8 +20,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/js/main.js?v=0.1.0.5"></script>
-    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.5">
+    <script src="static/js/main.js?v=0.1.0.51"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.51">
 
 </head>
 
@@ -273,7 +273,7 @@
 
             </div>
             
-            <div x-show="showOverlay" x-cloak id="main-overlay"></div>
+            <div x-show="showOverlay" :class="{'upper': modal.image}" x-cloak id="main-overlay"></div>
             
             <div x-show="modal.transit" x-cloak id="modal-shipping">
                 <div class="content-mobile">
@@ -433,7 +433,13 @@
                         </div>
 
                         <div class="show-capture-proof">
-                            <img class="thumbnail" :src="'/api/uploads/'+process_shipping.proof" alt="preview">
+                            <img 
+                                class="thumbnail" 
+                                :src="'/api/uploads/' + process_shipping.proof" 
+                                alt="preview" 
+                                @click="modal.image = true"
+                                style="cursor: pointer;"
+                            >
                         </div>
                     </div>
                     
@@ -441,6 +447,15 @@
                         <img alt="close" src="static/images/x.svg" width="12" height="12">
                     </div>
                 </div>
+            </div>
+
+            <div 
+                x-show="modal.image" 
+                class="upper"
+                @click="modal.image = false"
+                id="modal-shipping"
+            >
+                <img :src="'/api/uploads/' + process_shipping.proof" class="full-image" alt="preview">
             </div>
 
             <div x-show="modal.completed" x-cloak id="modal-shipping">
