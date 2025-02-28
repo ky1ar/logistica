@@ -478,6 +478,8 @@ body {
 }
 #modal-shipping .full-image {
     object-fit: contain;
+    -webkit-user-drag: none;
+    cursor: pointer;
 }
 #modal-shipping.finish {
     max-width: 48rem;

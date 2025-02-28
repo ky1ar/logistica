@@ -51,6 +51,7 @@ class BaseController:
         
         result = shipping_order.to_dict()
         result.update({
+            "address": shipping_order.address.title(),
             "district_name": shipping_order.district.name,
             "driver_name": shipping_order.driver.name,
             "method_name": shipping_order.method.name,

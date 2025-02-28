@@ -20,8 +20,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/js/main.js?v=0.1.0.51"></script>
-    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.51">
+    <script src="static/js/main.js?v=0.1.0.52"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.52">
 
 </head>
 
@@ -434,7 +434,7 @@
 
                         <div class="show-capture-proof">
                             <img 
-                                class="thumbnail" 
+                                class="thumbnail hover-opacity" 
                                 :src="'/api/uploads/' + process_shipping.proof" 
                                 alt="preview" 
                                 @click="modal.image = true"
