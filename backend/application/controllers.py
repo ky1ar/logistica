@@ -1,6 +1,7 @@
 import logging, re
 
 from application import bcrypt, socketio
+from application.models import HistoryType, ShippingStatusList
 from application.services import BaseService
 from application.handlers import handle_logs_and_exceptions, validate_request
 from flask_jwt_extended import create_access_token
@@ -8,7 +9,6 @@ from flask_jwt_extended import create_access_token
 class BaseController:
     def __init__(self):
         self.service = BaseService()     
-
 
 
     @handle_logs_and_exceptions
@@ -54,6 +54,8 @@ class BaseController:
             "district_name": shipping_order.district.name,
             "driver_name": shipping_order.driver.name,
             "method_name": shipping_order.method.name,
+            "method_background": shipping_order.method.background,
+            "method_border": shipping_order.method.border,
             "register_date_format": shipping_order.register_date.strftime("%Y-%m-%d")
         })
 
@@ -69,6 +71,17 @@ class BaseController:
         
         result["contacts"] = contacts 
 
+        shipping_dates, shipping_dates_status = self.service.get_shipping_dates(shipping_order.id, shipping_order.status_id)
+        if shipping_dates_status != 200:
+            return shipping_dates, shipping_dates_status
+        
+        if shipping_order.status_id == 4:
+            result["on_the_way_date"] = shipping_dates.get("on_the_way_date")
+            result["delivered_date"] = shipping_dates.get("delivered_date")
+        elif shipping_order.status_id == 6:
+            result["on_the_way_date"] = shipping_dates.get("on_the_way_date")
+            result["not_delivered_date"] = shipping_dates.get("not_delivered_date")
+        
         return result, 200
         
 
@@ -88,6 +101,7 @@ class BaseController:
         order_number = request.get("order_number", "").strip()
         edit = request.get("edit")
         method_id = request.get("method_id")
+        admin_id = request.get("admin_id")
         register_date = request.get("register_date")
         district_id = request.get("district_id")
         address = request.get("address", "").strip()
@@ -131,6 +145,10 @@ class BaseController:
 
             if updated_fields:
                 self.service.update_shipping_order_data(shipping, updated_fields)
+
+            history, history_status = self.service.add_history(admin_id, shipping.id, HistoryType.UPDATED, data=updated_fields)
+            if history_status != 200:
+                return history, history_status
             
             socketio.emit("update_schedule", {})
             return "Orden actualizada correctamente", 200
@@ -186,6 +204,10 @@ class BaseController:
         if shipping_contact_status != 200:
             return shipping_contact, shipping_contact_status
         
+        history, history_status = self.service.add_history(admin_id, shipping_order_id, HistoryType.ADDED)
+        if history_status != 200:
+            return history, history_status
+        
         socketio.emit("update_schedule", {})
         return "Orden registrada correctamente", 200
 
@@ -214,6 +236,8 @@ class BaseController:
         ):
             return validation_error, 400
 
+        admin_id = request.get("admin_id")
+
         order_number = request.get("order_number")
         shipping_order, shipping_order_status = self.service.get_shipping_by_order_number(order_number)
         if shipping_order_status != 200:
@@ -228,6 +252,22 @@ class BaseController:
         #    }
 
         #    self.service.send_message(data,template=status_id)
+
+        status = None
+        if status_id == 1:
+            status = ShippingStatusList.PENDING
+        elif status_id == 2:
+            status = ShippingStatusList.SCHEDULED
+        elif status_id == 3:
+            status = ShippingStatusList.ON_THE_WAY
+        elif status_id == 4:
+            status = ShippingStatusList.DELIVERED
+        elif status_id == 6:
+            status = ShippingStatusList.NOT_DELIVERED
+
+        history, history_status = self.service.add_history(admin_id, shipping_order.id, HistoryType.STATUS_CHANGE, status, data=request)
+        if history_status != 200:
+            return history, history_status
         
         return self.service.update_shipping_order(shipping_order, request)
 
@@ -240,10 +280,15 @@ class BaseController:
         ):
             return validation_error, 400
 
+        admin_id = request.get("admin_id")
         order_number = request.get("order_number")
         shipping_order, shipping_order_status = self.service.get_shipping_by_order_number(order_number)
         if shipping_order_status != 200:
             return shipping_order, shipping_order_status
+        
+        history, history_status = self.service.add_history(admin_id, shipping_order.id, HistoryType.DELETED)
+        if history_status != 200:
+            return history, history_status
         
         return self.service.delete_shipping_order(shipping_order)
     

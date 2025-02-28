@@ -466,6 +466,9 @@ body {
     max-height: calc(100vh - 2rem);
     overflow-y: auto;
 }
+#modal-shipping.finish {
+    max-width: 48rem;
+}
 #modal-shipping .content {
     position: relative;
     gap: 0.5rem;
@@ -505,6 +508,10 @@ body {
     padding: 0.75rem;
     gap: 0.5rem;
 }
+#modal-shipping .contact .data {
+    display: flex;
+    flex-wrap: wrap;
+}
 #modal-shipping label img {
     position: absolute;
     left: 1rem;
@@ -514,10 +521,10 @@ body {
 #modal-shipping label img + input{
     padding-left: 2.25rem;
 }
-#modal-shipping .contact .data {
-    display: flex;
-    flex-wrap: wrap;
+#modal-shipping label img + span{
+    padding-left: 2.25rem;
 }
+
 #modal-shipping label {
     display: flex;
     position: relative;
@@ -527,9 +534,11 @@ body {
     color: #00000080;
     font-size: 0.75rem;
     gap: 0.25rem;
+    align-items: center;
 }
 #modal-shipping .contact .data label {
     padding: 0.25rem;
+    color: var(--black);
 }
 #modal-shipping input,
 #modal-shipping select {
@@ -582,7 +591,70 @@ body {
     opacity: 1;
     background-color: #4fa877;
 }
-
+/***********************************************************************************/
+#modal-shipping .show-box {
+    display: flex;
+    gap: 1.5rem;
+}
+#modal-shipping .show {
+    display: flex;
+    flex-wrap: wrap;
+    width: 31rem;
+}
+#modal-shipping .show img{
+    left: 0.25rem;
+}
+#modal-shipping .show img + span{
+    padding-left: 1.5rem;
+}
+#modal-shipping .show .header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+#modal-shipping .show .contact {
+    margin: 0.75rem 0;
+}
+#modal-shipping .header .type {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+}
+#modal-shipping .header .register {
+    text-align: right;
+    width: 100%;
+}
+#modal-shipping .show-capture-proof {
+    width: 12.5rem;
+    border: 2px solid var(--gray);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    height: 16rem;
+}
+#modal-shipping .review {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    border-top: 2px dashed var(--gray);
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    gap: 0.5rem;
+}
+#modal-shipping .row {
+    display: flex;
+    justify-content: space-between;
+}
+#modal-shipping .detail {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
 /***********************************************************************************/
 #modal-shipping .capture-proof {
     display: flex;
@@ -645,6 +717,7 @@ body {
     align-items: center;
     background-color: var(--gray);
     color: var(--black);
+    width: 100%;
 }
 #modal-shipping .content-mobile .data {
     display: flex;

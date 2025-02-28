@@ -7,7 +7,7 @@ from config import Twilio, ApisNet
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
 from datetime import date, datetime, timezone, timedelta
-from application.models import Users, ShippingOrders, ShippingDistricts, ShippingMethod, ShippingContact
+from application.models import Users, ShippingOrders, ShippingDistricts, ShippingMethod, ShippingContact, ShippingHistory, ShippingStatusList
 from application.handlers import handle_exceptions, handle_db_exceptions
 from sqlalchemy.orm import joinedload
 from sqlalchemy import asc
@@ -212,7 +212,43 @@ class BaseService:
             return 'Orden de pedido no encontrada', 400
         
         return purchase_order, 200
- 
+
+
+    @handle_db_exceptions
+    def get_shipping_dates(self, order_id, status_id):
+        statuses_to_fetch = [ShippingStatusList.ON_THE_WAY]
+        
+        if status_id == 4:
+            statuses_to_fetch.append(ShippingStatusList.DELIVERED)
+        elif status_id == 6:
+            statuses_to_fetch.append(ShippingStatusList.NOT_DELIVERED)
+        else:
+            return None, 200
+        
+        history_entries = (
+            g.db_session.query(ShippingHistory)
+            .filter(ShippingHistory.order_id == order_id)
+            .filter(ShippingHistory.status.in_(statuses_to_fetch))
+            .order_by(ShippingHistory.created_at.desc())
+            .all()
+        )
+
+        result = {
+            "on_the_way_date": None,
+            "delivered_date": None,
+            "not_delivered_date": None
+        }
+
+        for entry in history_entries:
+            if entry.status == ShippingStatusList.ON_THE_WAY:
+                result["on_the_way_date"] = entry.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            elif entry.status == ShippingStatusList.DELIVERED:
+                result["delivered_date"] = entry.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            elif entry.status == ShippingStatusList.NOT_DELIVERED:
+                result["not_delivered_date"] = entry.created_at.strftime("%Y-%m-%d %H:%M:%S")
+
+        return result, 200
+    
 
     @handle_db_exceptions
     def add_shipping_order(self, data):
@@ -237,6 +273,28 @@ class BaseService:
         g.db_session.commit()
         logging.info(f"New shipping order added to DB with id {shipping_order_id}")
         return shipping_order_id, 200
+
+
+    @handle_db_exceptions
+    def add_history(self, admin_id, order_id, history_type, status=None, data=None):
+        utc_now = datetime.now(timezone.utc)
+        peru_time = utc_now - timedelta(hours=5)
+
+        new_history = ShippingHistory(
+            admin_id=admin_id,
+            order_id=order_id,
+            type=history_type,
+            created_at=peru_time
+        )
+        if status:
+            new_history.status = status
+        if data:
+            new_history.data = data
+
+        g.db_session.add(new_history)
+        g.db_session.commit()
+        logging.info(f"New history added to DB")
+        return True, 200
 
 
     @handle_db_exceptions

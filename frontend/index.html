@@ -20,8 +20,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/js/main.js?v=0.1.0.4"></script>
-    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.4">
+    <script src="static/js/main.js?v=0.1.0.5"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=0.1.0.5">
 
 </head>
 
@@ -273,7 +273,7 @@
 
             </div>
             
-            <div x-show="modal.overlay" x-cloak id="main-overlay"></div>
+            <div x-show="showOverlay" x-cloak id="main-overlay"></div>
             
             <div x-show="modal.transit" x-cloak id="modal-shipping">
                 <div class="content-mobile">
@@ -348,53 +348,98 @@
                 </div>
             </div>
 
-            <div x-show="modal.finish" x-cloak id="modal-shipping">
-                <form class="content">
-                    <div class="percent40 title" x-text="process_shipping.order_number"></div>
+            <div x-show="modal.finish" class="finish" x-cloak id="modal-shipping">
+                <div class="content">
+                    <div class="percent40 title" x-text="'Orden ' + process_shipping.order_number"></div>
 
-                    <div class="fields">
-                        <label class="percent33" x-text="process_shipping.method_name"></label>
-                        <label class="percent33" x-text="process_shipping.register_date"></label>
-                        <label class="percent33" x-text="process_shipping.document"></label>
+                    <div class="show-box">
+                        <div class="show">
+                            <div class="header">
+                                <span class="type"
+                                    :style="`background-color: ${process_shipping.method_background}; border: 2px solid ${process_shipping.method_border}`"
+                                    x-text="process_shipping.method_name"
+                                ></span>
+                                <span class="register" x-text="'Ingresado el ' + new Date(process_shipping.register_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })"></span>
+                            </div>
+                            
+                            <div class="contact">
+                                <div class="data">
+                                    <label class="percent66">
+                                        <img alt="user" src="static/images/user.svg" width="16" height="16">
+                                        <span x-text="process_shipping.name"></span>
+                                    </label>
+                                    
+                                    <label class="percent33">
+                                        <img alt="document" src="static/images/id.svg" width="16" height="16">
+                                        <span x-text="process_shipping.document"></span>
+                                    </label>
 
-                        <div class="contact">
-                            <div class="data">
-                                <label class="percent100">
-                                    <img alt="user" src="static/images/user.svg" width="16" height="16">
-                                    <div x-text="process_shipping.name"></div>
-                                </label>
-        
-                                <label class="percent66">
-                                    <img alt="email" src="static/images/email.svg" width="16" height="16">
-                                    <div x-text="process_shipping.email"></div>
-                                </label>
-        
-                                <label class="percent33">
-                                    <img alt="phone" src="static/images/phone.svg" width="16" height="16">
-                                    <div x-text="process_shipping.phone"></div>
-                                </label>
+                                    <label class="percent66">
+                                        <img alt="email" src="static/images/email.svg" width="16" height="16">
+                                        <span x-text="process_shipping.email"></span>
+                                    </label>
+
+                                    <label class="percent33">
+                                        <img alt="phone" src="static/images/phone.svg" width="16" height="16">
+                                        <span x-text="process_shipping.phone"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <label class="percent66">
+                                <img alt="user" src="static/images/location.svg" width="16" height="16">
+                                <span x-text="process_shipping.address"></span>
+                            </label>
+
+                            <label class="percent33">
+                                <img alt="user" src="static/images/city.svg" width="16" height="16">
+                                <span x-text="process_shipping.district_name"></span>
+                            </label>
+
+                            <div class="review">
+                                <div class="row" x-show="process_shipping.on_the_way_date">
+                                    <div class="detail">
+                                        <img alt="user" src="static/images/transit.svg" width="16" height="16">
+                                        En camino
+                                    </div>
+                                    <span x-text="new Date(process_shipping.on_the_way_date).toLocaleString('es-ES', { 
+                                        day: 'numeric', 
+                                        month: 'long', 
+                                        year: 'numeric', 
+                                        hour: '2-digit', 
+                                        minute: '2-digit', 
+                                        second: '2-digit', 
+                                        hour12: true 
+                                    })"></span>
+                                </div>
+                            
+                                <div class="row" 
+                                     x-show="process_shipping.status_id === 4 ? process_shipping.delivered_date : process_shipping.not_delivered_date">
+                                    <div class="detail">
+                                        <img alt="user" src="static/images/delivered.svg" width="16" height="16">
+                                        <div x-text="process_shipping.status_id === 4 ? 'Entregado' : 'No entregado'"></div>
+                                    </div>
+                                    <span x-text="new Date(process_shipping.status_id === 4 ? process_shipping.delivered_date : process_shipping.not_delivered_date).toLocaleString('es-ES', { 
+                                        day: 'numeric', 
+                                        month: 'long', 
+                                        year: 'numeric', 
+                                        hour: '2-digit', 
+                                        minute: '2-digit', 
+                                        second: '2-digit', 
+                                        hour12: true 
+                                    })"></span>
+                                </div>
                             </div>
                         </div>
-                        
-                        <label class="percent100">
-                            <img alt="user" src="static/images/location.svg" width="16" height="16">
-                            <div x-text="process_shipping.address"></div>
-                        </label>
 
-                        <label class="percent33" x-text="process_shipping.district_name"></label>
-
-                        <label class="percent33" x-text="process_shipping.district_sname"></label>
-
-                        <label class="percent33" x-text="process_shipping.driver_name"></label>
+                        <div class="show-capture-proof">
+                            <img class="thumbnail" :src="'/api/uploads/'+process_shipping.proof" alt="preview">
+                        </div>
                     </div>
                     
-                  
                     <div class="hover-opacity" id="modal-close" @click="closeShipping()" >
                         <img alt="close" src="static/images/x.svg" width="12" height="12">
                     </div>
-                </form>
-                <div class="capture-proof">
-                    <img class="thumbnail" :src="'/api/uploads/'+process_shipping.proof" alt="preview">
                 </div>
             </div>
 
