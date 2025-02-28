@@ -43,6 +43,7 @@ function data() {
         modal: {
             shipping: false,
             completed: false,
+            image: false,
             finish: false,
             transit: false,
             overlay: false,
