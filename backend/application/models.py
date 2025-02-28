@@ -1,4 +1,20 @@
 from application import db
+from enum import Enum
+
+class HistoryType(Enum):
+    ADDED = "ADDED"
+    STATUS_CHANGE = "STATUS_CHANGE"
+    UPDATED = "UPDATED"
+    DELETED = "DELETED"
+
+
+class ShippingStatusList(Enum):
+    PENDING = "PENDING"
+    SCHEDULED = "SCHEDULED"
+    ON_THE_WAY = "ON_THE_WAY"
+    DELIVERED = "DELIVERED"
+    NOT_DELIVERED = "NOT_DELIVERED"
+
 
 class BaseModel(db.Model):
     __abstract__ = True
@@ -36,7 +52,6 @@ class ShippingMethod(BaseModel):
     slug = db.Column(db.String(100))
     background = db.Column(db.String(7))
     border = db.Column(db.String(7))
-
 
 
 class ShippingStatus(BaseModel):
@@ -102,4 +117,18 @@ class ShippingOrders(BaseModel):
     contacts = db.relationship("ShippingContact", lazy="joined", foreign_keys=[ShippingContact.order_id])
 
 
+class ShippingHistory(BaseModel):
+    __tablename__ = 'shipping_history'
+
+    id = db.Column(db.Integer, autoincrement=True, primary_key=True, nullable=False)
+    admin_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('shipping_orders.id'), nullable=False)
+    type = db.Column(db.Enum(HistoryType), nullable=False)
+    status = db.Column(db.Enum(ShippingStatusList), nullable=False)
+    
+    data = db.Column(db.String(255))
+    created_at = db.Column(db.TIMESTAMP, nullable=False, server_default=db.func.current_timestamp())
+
+    order = db.relationship("ShippingOrders", lazy="joined", foreign_keys=[order_id])
+    admin = db.relationship("Users", lazy="joined", foreign_keys=[admin_id])
 

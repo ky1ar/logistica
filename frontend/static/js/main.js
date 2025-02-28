@@ -77,26 +77,21 @@ function data() {
         preview: null,
         imageFile: null,
 
+        get showOverlay() {
+            return Object.values(this.modal).some(value => value);
+        },
+
         async processShippingModal(shipping_number){
             if (shipping_number){
                 await this.getShipping(shipping_number);
 
                 if (this.process_shipping.status_id > 3){
-                    this.modal = {
-                        completed: true,
-                        overlay: true,
-                    };
+                    this.modal.finish = true;
                 } else {
-                    this.modal = {
-                        shipping: true,
-                        overlay: true,
-                    };
+                    this.modal.shipping = true;
                 }
             } else {
-                this.modal = {
-                    shipping: true,
-                    overlay: true,
-                };
+                this.modal.shipping = true;
             }
         },
         
@@ -253,20 +248,15 @@ function data() {
         async showShipping(shipping_number){
             await this.getShipping(shipping_number);
 
-            this.modal = {
-                transit: true,
-                overlay: true,
-            };
+            this.modal.transit = true;
+        },
+
+        resetModal() {
+            Object.keys(this.modal).forEach(key => this.modal[key] = false);
         },
 
         closeShipping(){
-            this.modal = {
-                shipping: false,
-                completed: false,
-                finish: false,
-                transit: false,
-                overlay: false,
-            };
+            this.resetModal();
   
             this.preview = null;
             this.imageFile = null;
@@ -482,11 +472,16 @@ function data() {
                     order_number: shipping.order_number,
                     method_id: shipping.method_id,
                     method_name: shipping.method_name,
+                    method_background: shipping.method_background,
+                    method_border: shipping.method_border,
                     address: shipping.address,
                     district_id: shipping.district_id,
                     driver_name: shipping.driver_name,
                     district_name: shipping.district_name,
                     register_date: shipping.register_date_format,
+                    on_the_way_date: shipping.on_the_way_date,
+                    delivered_date: shipping.delivered_date,
+                    not_delivered_date: shipping.not_delivered_date,
                     status_id: shipping.status_id,
                     proof: shipping.proof_photo,
                     maps: shipping.maps,
